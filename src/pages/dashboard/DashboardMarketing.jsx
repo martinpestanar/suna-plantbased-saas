@@ -42,9 +42,46 @@ export default function DashboardMarketing() {
   // Toast
   const [toast, setToast] = useState(null);
 
+  // Estados de Combo del Día
+  const [menuItems, setMenuItems] = useState([]);
+  const [hamburgers, setHamburgers] = useState([]);
+  const [drinks, setDrinks] = useState([]);
+  const [selectedBurgerId, setSelectedBurgerId] = useState('');
+  const [selectedDrinkId, setSelectedDrinkId] = useState('');
+  const [comboPromoPrice, setComboPromoPrice] = useState(39.00);
+  const [comboOrigPrice, setComboOrigPrice] = useState(46.00);
+  const [comboExpiryHours, setComboExpiryHours] = useState(6);
+  const [comboActive, setComboActive] = useState(true);
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchActiveComboSettings = async () => {
+    try {
+      const [{ data: itemsData }, { data: activeComboData }] = await Promise.all([
+        supabase.from('items_menu').select('*').eq('disponible', true),
+        supabase.from('combo_del_dia').select('*').order('created_at', { ascending: false }).limit(1)
+      ]);
+
+      if (itemsData) {
+        setMenuItems(itemsData);
+        setHamburgers(itemsData.filter(i => i.nombre.toLowerCase().includes('hamburguesa') || i.nombre.toLowerCase().includes('burger')));
+        setDrinks(itemsData.filter(i => i.nombre.toLowerCase().includes('kombucha') || i.nombre.toLowerCase().includes('jugo') || i.nombre.toLowerCase().includes('limonada') || i.nombre.toLowerCase().includes('bebida')));
+      }
+
+      if (activeComboData && activeComboData.length > 0) {
+        const active = activeComboData[0];
+        setSelectedBurgerId(active.hamburguesa_id);
+        setSelectedDrinkId(active.bebida_id);
+        setComboPromoPrice(parseFloat(active.precio_oferta));
+        setComboOrigPrice(parseFloat(active.precio_original));
+        setComboActive(active.activo);
+      }
+    } catch (err) {
+      console.error('Error fetching active combo settings:', err);
+    }
   };
 
   useEffect(() => {
@@ -62,8 +99,42 @@ export default function DashboardMarketing() {
 
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchSegments(), fetchProposals()]);
+    await Promise.all([fetchSegments(), fetchProposals(), fetchActiveComboSettings()]);
     setLoading(false);
+  };
+
+  const handleSaveCombo = async (e) => {
+    e.preventDefault();
+    if (!selectedBurgerId || !selectedDrinkId) {
+      showToast('Selecciona una hamburguesa y una bebida');
+      return;
+    }
+
+    try {
+      const burger = menuItems.find(i => i.id === selectedBurgerId);
+      const drink = menuItems.find(i => i.id === selectedDrinkId);
+      const orig = (burger ? parseFloat(burger.precio) : 0) + (drink ? parseFloat(drink.precio) : 0);
+
+      const { error } = await supabase
+        .from('combo_del_dia')
+        .insert([
+          {
+            restaurante_id: activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb',
+            hamburguesa_id: selectedBurgerId,
+            bebida_id: selectedDrinkId,
+            precio_oferta: parseFloat(comboPromoPrice),
+            precio_original: orig || parseFloat(comboOrigPrice),
+            expira_en: new Date(Date.now() + comboExpiryHours * 60 * 60 * 1000).toISOString(),
+            activo: comboActive
+          }
+        ]);
+
+      if (error) throw error;
+      showToast('¡Combo del Día publicado en la PWA! 🍔🥤');
+    } catch (err) {
+      console.error('Error saving combo:', err);
+      showToast('Error al guardar el combo');
+    }
   };
 
   // Carga conteos en tiempo real para las 8 audiencias desde la RPC de Supabase
@@ -572,6 +643,121 @@ export default function DashboardMarketing() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* CONFIGURACIÓN DEL COMBO DEL DÍA */}
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 24, padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span style={{ fontSize: 20 }}>🍔</span>
+          <div>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 900, color: 'var(--color-on-surface)' }}>
+              Configurar Combo Suna del Día
+            </h3>
+            <p style={{ fontSize: 10, color: 'var(--color-muted)', fontWeight: 600 }}>
+              Elige el plato, la bebida y define el precio de oferta que verán los clientes en la PWA
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveCombo} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Hamburguesa Principal</label>
+              {hamburgers.length === 0 ? (
+                <p style={{ fontSize: 11, color: 'var(--color-muted)' }}>Cargando hamburguesas...</p>
+              ) : (
+                <select
+                  value={selectedBurgerId}
+                  onChange={e => setSelectedBurgerId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Selecciona...</option>
+                  {hamburgers.map(h => (
+                    <option key={h.id} value={h.id}>{h.nombre} (S/. {parseFloat(h.precio).toFixed(2)})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Bebida Base</label>
+              {drinks.length === 0 ? (
+                <p style={{ fontSize: 11, color: 'var(--color-muted)' }}>Cargando bebidas...</p>
+              ) : (
+                <select
+                  value={selectedDrinkId}
+                  onChange={e => setSelectedDrinkId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Selecciona...</option>
+                  {drinks.map(d => (
+                    <option key={d.id} value={d.id}>{d.nombre} (S/. {parseFloat(d.precio).toFixed(2)})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Precio Oferta Combo (S/.)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="Ej. 39.00"
+                value={comboPromoPrice}
+                onChange={e => setComboPromoPrice(e.target.value)}
+                style={{ ...inputStyle, background: '#fff' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Duración de la Oferta</label>
+              <select
+                value={comboExpiryHours}
+                onChange={e => setComboExpiryHours(parseInt(e.target.value))}
+                style={inputStyle}
+              >
+                <option value="2">2 Horas</option>
+                <option value="4">4 Horas</option>
+                <option value="6">6 Horas</option>
+                <option value="12">12 Horas</option>
+                <option value="24">24 Horas</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--color-surface-3)', paddingTop: 14 }}>
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-on-surface)' }}>Combo Activo en PWA</p>
+              <p style={{ fontSize: 9, color: 'var(--color-muted)' }}>Muestra la oferta en la cabecera de la carta de los clientes.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setComboActive(p => !p)}
+              style={{
+                width: 44, height: 24, borderRadius: 12,
+                background: comboActive ? 'var(--color-primary)' : 'var(--color-surface-3)',
+                border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 250ms'
+              }}
+            >
+              <div style={{ position: 'absolute', top: 3, left: comboActive ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 250ms' }} />
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            style={{
+              background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 12,
+              padding: '12px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+              textAlign: 'center', width: '100%', marginTop: 6,
+              boxShadow: '0 4px 12px rgba(27,67,50,0.15)'
+            }}
+          >
+            💾 Guardar y Publicar Combo
+          </button>
+        </form>
       </div>
 
       {/* PANEL CONTROL: Campañas Masivas con Banco de Plantillas */}

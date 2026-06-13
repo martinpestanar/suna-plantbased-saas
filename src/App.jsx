@@ -102,6 +102,13 @@ export default function App() {
   const [toast, setToast]   = useState(null);
   const [clock, setClock]   = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
+
+  // ── Combo del Día ──
+  const [activeCombo, setActiveCombo] = useState(null);
+  const [comboTimer, setComboTimer] = useState('');
+  const [drinkSelectorOpen, setDrinkSelectorOpen] = useState(false);
+  const [comboDrinks, setComboDrinks] = useState([]);
+  const [selectedBurgerForCombo, setSelectedBurgerForCombo] = useState(null);
   const contentRef          = useRef(null);
 
   // ── Desktop layout detection ──
@@ -133,10 +140,11 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [{ data: res }, { data: catData }, { data: itemData }] = await Promise.all([
+        const [{ data: res }, { data: catData }, { data: itemData }, { data: comboData }] = await Promise.all([
           supabase.from('restaurantes').select('*').limit(1),
           supabase.from('categorias_menu').select('*'),
           supabase.from('items_menu').select('*').eq('disponible', true),
+          supabase.from('combo_del_dia').select('*').eq('activo', true).order('created_at', { ascending: false }).limit(1),
         ]);
         if (res?.[0])   setRestaurant(res[0]);
         if (catData?.length) { setCats(catData); setCatId(catData[0].id); }
@@ -147,6 +155,9 @@ export default function App() {
             precio_oferta: i.precio_oferta ? parseFloat(i.precio_oferta) : null
           })));
         }
+        if (comboData?.[0]) {
+          setActiveCombo(comboData[0]);
+        }
       } catch (e) {
         console.error('DB offline, usando datos demo', e);
         setCatId(FALLBACK_CATS[0].id);
@@ -155,6 +166,37 @@ export default function App() {
       }
     })();
   }, []);
+
+  // ── Cuenta regresiva del Combo ──
+  useEffect(() => {
+    if (!activeCombo || !activeCombo.expira_en) {
+      setComboTimer('');
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const expiry = new Date(activeCombo.expira_en).getTime();
+      const now = new Date().getTime();
+      const diff = expiry - now;
+
+      if (diff <= 0) {
+        setComboTimer('¡Oferta expirada!');
+        clearInterval(interval);
+      } else {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        const hStr = hours.toString().padStart(2, '0');
+        const mStr = minutes.toString().padStart(2, '0');
+        const sStr = seconds.toString().padStart(2, '0');
+        
+        setComboTimer(`${hStr}h ${mStr}m ${sStr}s`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeCombo]);
 
   /* ──────────────────────────────────── Scroll Handler ── */
   useEffect(() => {
@@ -237,34 +279,83 @@ export default function App() {
   };
 
   const addComboToCart = () => {
-    const burger = items.find(i => 
-      i.nombre.toLowerCase().includes('hamburguesa') || 
-      i.nombre.toLowerCase().includes('burger')
-    );
-    const drink = items.find(i => 
-      i.nombre.toLowerCase().includes('kombucha') || 
-      i.nombre.toLowerCase().includes('jugo') || 
-      i.nombre.toLowerCase().includes('limonada') ||
-      i.nombre.toLowerCase().includes('bebida')
-    );
+    if (activeCombo) {
+      const burger = items.find(i => i.id === activeCombo.hamburguesa_id);
+      const drink = items.find(i => i.id === activeCombo.bebida_id);
 
-    if (!burger || !drink) {
-      showToast('Combo no disponible temporalmente', 'error');
-      return;
+      if (!burger || !drink) {
+        showToast('Combo no disponible temporalmente', 'error');
+        return;
+      }
+
+      // Buscar todos los sabores de la misma categoría de la bebida elegida
+      const relatedDrinks = items.filter(
+        i => i.categoria_id === drink.categoria_id && i.disponible
+      );
+
+      if (relatedDrinks.length > 1) {
+        setSelectedBurgerForCombo(burger);
+        setComboDrinks(relatedDrinks);
+        setDrinkSelectorOpen(true);
+      } else {
+        setCart(p => ({
+          ...p,
+          [burger.id]: (p[burger.id] || 0) + 1,
+          [drink.id]: (p[drink.id] || 0) + 1
+        }));
+        setBadgePop(true);
+        setTimeout(() => setBadgePop(false), 450);
+        if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+        showToast('¡Combo Suna añadido! 🍔🥤');
+      }
+    } else {
+      const burger = items.find(i => 
+        i.nombre.toLowerCase().includes('hamburguesa') || 
+        i.nombre.toLowerCase().includes('burger')
+      );
+      const drink = items.find(i => 
+        i.nombre.toLowerCase().includes('kombucha') || 
+        i.nombre.toLowerCase().includes('jugo') || 
+        i.nombre.toLowerCase().includes('limonada') ||
+        i.nombre.toLowerCase().includes('bebida')
+      );
+
+      if (!burger || !drink) {
+        showToast('Combo no disponible temporalmente', 'error');
+        return;
+      }
+
+      setCart(p => ({
+        ...p,
+        [burger.id]: (p[burger.id] || 0) + 1,
+        [drink.id]: (p[drink.id] || 0) + 1
+      }));
+      
+      setBadgePop(true);
+      setTimeout(() => setBadgePop(false), 450);
+
+      if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+      showToast('¡Combo Suna añadido! 🍔🥤');
     }
+  };
+
+  const handleSelectComboDrink = (drinkId) => {
+    const burger = selectedBurgerForCombo || items.find(i => i.id === activeCombo?.hamburguesa_id);
+    if (!burger) return;
 
     setCart(p => ({
       ...p,
       [burger.id]: (p[burger.id] || 0) + 1,
-      [drink.id]: (p[drink.id] || 0) + 1
+      [drinkId]: (p[drinkId] || 0) + 1
     }));
     
+    setDrinkSelectorOpen(false);
     setBadgePop(true);
     setTimeout(() => setBadgePop(false), 450);
-
-    if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
-    showToast('¡Combo Suna añadido! 🍔🥤');
+    if (navigator.vibrate) navigator.vibrate([15, 40, 15]);
+    showToast('¡Suna Combo añadido con tu sabor! 🍔🥤');
   };
+
   const setQty = (id, delta) => {
     setCart(p => {
       const next = (p[id]||0) + delta;
@@ -682,35 +773,53 @@ export default function App() {
               ) : (
                 <div style={{ padding:'12px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:10 }}>
                   {/* Banner hero solo en menu sin filtro */}
-                  {tab === 'menu' && catId === 'all' && !query && (
-                    <div className="hero-banner combo-banner">
-                      <div className="hero-banner__bg" />
-                      <img
-                        className="hero-banner__img"
-                        src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80"
-                        alt="Suna Combo del Día"
-                      />
-                      <div className="hero-banner__overlay" />
-                      
-                      <div className="combo-banner__content">
-                        <div className="combo-banner__left">
-                          <span className="combo-banner__tag">🔥 Combo del Día</span>
-                          <h3 className="combo-banner__title">Suna Combo</h3>
-                          <p className="combo-banner__desc">Hamburguesa Suna + Bebida</p>
-                          <div className="combo-banner__price-box">
-                            <span className="combo-banner__price-promo">S/. 39.00</span>
-                            <span className="combo-banner__price-orig">S/. 46.00</span>
+                  {tab === 'menu' && catId === 'all' && !query && (() => {
+                    const activeBurgerItem = items.find(i => i.id === activeCombo?.hamburguesa_id);
+                    const activeDrinkItem = items.find(i => i.id === activeCombo?.bebida_id);
+                    const title = activeCombo ? "Combo Suna Especial" : "Suna Combo";
+                    const desc = activeBurgerItem && activeDrinkItem 
+                      ? `${activeBurgerItem.nombre.replace('Hamburguesa ', '')} + ${activeDrinkItem.nombre.replace('Kombucha ', '').replace('Jugo ', '')}`
+                      : "Hamburguesa Suna + Bebida";
+                    const promoPrice = activeCombo ? parseFloat(activeCombo.precio_oferta).toFixed(2) : "39.00";
+                    const origPrice = activeCombo ? parseFloat(activeCombo.precio_original).toFixed(2) : "46.00";
+
+                    return (
+                      <div className="hero-banner combo-banner">
+                        <div className="hero-banner__bg" />
+                        <img
+                          className="hero-banner__img"
+                          src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80"
+                          alt="Suna Combo del Día"
+                        />
+                        <div className="hero-banner__overlay" />
+                        
+                        <div className="combo-banner__content">
+                          <div className="combo-banner__left">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span className="combo-banner__tag">🔥 Combo del Día</span>
+                              {comboTimer && (
+                                <span className="combo-banner__timer">
+                                  ⏱️ {comboTimer}
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="combo-banner__title">{title}</h3>
+                            <p className="combo-banner__desc">{desc}</p>
+                            <div className="combo-banner__price-box">
+                              <span className="combo-banner__price-promo">S/. {promoPrice}</span>
+                              <span className="combo-banner__price-orig">S/. {origPrice}</span>
+                            </div>
+                          </div>
+                          <div className="combo-banner__right">
+                            <button onClick={addComboToCart} className="combo-banner__btn">
+                              <span className="combo-banner__btn-icon">🛒</span>
+                              <span className="combo-banner__btn-text">Pedir Combo</span>
+                            </button>
                           </div>
                         </div>
-                        <div className="combo-banner__right">
-                          <button onClick={addComboToCart} className="combo-banner__btn">
-                            <span className="combo-banner__btn-icon">🛒</span>
-                            <span className="combo-banner__btn-text">Pedir Combo</span>
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Carrusel de Ofertas Relámpago */}
                   {tab === 'menu' && catId === 'all' && !query && items.some(i => i.en_oferta) && (
@@ -1019,6 +1128,60 @@ export default function App() {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── DRINK SELECTOR BOTTOM SHEET / MODAL ── */}
+        {drinkSelectorOpen && (
+          <div className="sheet-overlay" onClick={e => { if(e.target===e.currentTarget) setDrinkSelectorOpen(false); }}>
+            <div className="sheet-container" style={{ maxHeight: '60dvh' }}>
+              <div className="sheet-handle" />
+              <div style={{ padding:'16px 20px 12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <p style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:800, color:'var(--color-on-surface)' }}>Personaliza tu Bebida 🥤</p>
+                  <p style={{ fontSize:11, color:'var(--color-muted)', fontWeight:600, marginTop:2 }}>Elige el sabor que prefieras para tu combo:</p>
+                </div>
+                <button onClick={() => setDrinkSelectorOpen(false)}
+                  style={{ width:36, height:36, borderRadius:12, background:'var(--color-surface-2)', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--color-muted)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="sheet-body" style={{ padding: '10px 20px 30px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                  {comboDrinks.map(drink => (
+                    <button
+                      key={drink.id}
+                      onClick={() => handleSelectComboDrink(drink.id)}
+                      className="combo-drink-select-card"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                        padding: '12px 16px',
+                        borderRadius: 16,
+                        border: '1.5px solid var(--color-surface-3)',
+                        background: 'var(--color-surface)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <div className="combo-drink-img-wrap" style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0 }}>
+                        <img src={drink.imagen_url} alt={drink.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.src='https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=100&q=60'; }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--color-on-surface)' }}>{drink.nombre}</p>
+                        <p style={{ fontSize: 10, color: 'var(--color-muted)' }}>{drink.descripcion || 'Bebida artesanal premium'}</p>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 800, background: '#D8F3DC', color: '#1B4332', padding: '4px 8px', borderRadius: 8 }}>✓ Seleccionar</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

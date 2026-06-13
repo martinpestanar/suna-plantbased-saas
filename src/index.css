@@ -819,6 +819,25 @@ body {
   width: fit-content;
   margin-bottom: 2px;
 }
+.combo-banner__timer {
+  font-size: 8px;
+  background: var(--color-danger);
+  color: #ffffff;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.combo-drink-select-card:hover {
+  border-color: var(--color-secondary) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(64,145,108,0.1);
+}
 .combo-banner__title {
   font-family: var(--font-display);
   font-size: 16px;
