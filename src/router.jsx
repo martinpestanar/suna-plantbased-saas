@@ -16,7 +16,7 @@ export const ROUTES = {
 
 function getInitialRoute() {
   const p = window.location.pathname;
-  if (p.startsWith('/dashboard'))       return '/dashboard';
+  if (p.startsWith('/dashboard'))       return p;
   if (p.startsWith('/login'))           return '/login';
   if (p.startsWith('/menu'))            return '/menu';
   if (p.startsWith('/onboarding'))      return '/onboarding';

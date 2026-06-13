@@ -136,8 +136,17 @@ function Clock() {
    ═══════════════════════════════════════════════════════════ */
 export default function DashboardLight() {
   const { restaurants, activeRestaurant, selectRestaurant, resLoading } = useAuth();
-  const { navigate } = useRouter();
-  const [activeTab, setActiveTab] = useState('inicio');
+  const { route, navigate } = useRouter();
+  
+  const getTabFromRoute = (r) => {
+    if (r.startsWith('/dashboard/pedidos'))    return 'pedidos';
+    if (r.startsWith('/dashboard/carta'))      return 'carta';
+    if (r.startsWith('/dashboard/inventario')) return 'inventario';
+    if (r.startsWith('/dashboard/metricas'))   return 'metricas';
+    return 'inicio';
+  };
+
+  const activeTab = getTabFromRoute(route);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
 
@@ -161,7 +170,11 @@ export default function DashboardLight() {
 
   const switchTab = (id) => {
     if (navigator.vibrate) navigator.vibrate(5);
-    setActiveTab(id);
+    if (id === 'inicio') {
+      navigate('/dashboard');
+    } else {
+      navigate(`/dashboard/${id}`);
+    }
   };
 
   const renderContent = () => {

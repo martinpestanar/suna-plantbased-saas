@@ -127,8 +127,17 @@ function Clock() {
    ═══════════════════════════════════════════════════════════ */
 export default function Dashboard() {
   const { session, logout, restaurants, activeRestaurant, selectRestaurant, resLoading } = useAuth();
-  const { navigate } = useRouter();
-  const [activeTab, setActiveTab] = useState('inicio');
+  const { route, navigate } = useRouter();
+  
+  const getTabFromRoute = (r) => {
+    if (r.startsWith('/dashboard/pedidos'))    return 'pedidos';
+    if (r.startsWith('/dashboard/carta'))      return 'carta';
+    if (r.startsWith('/dashboard/inventario')) return 'inventario';
+    if (r.startsWith('/dashboard/metricas'))   return 'metricas';
+    return 'inicio';
+  };
+
+  const activeTab = getTabFromRoute(route);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const prevTab = useRef('inicio');
@@ -149,7 +158,11 @@ export default function Dashboard() {
   const switchTab = (id) => {
     if (navigator.vibrate) navigator.vibrate(5);
     prevTab.current = activeTab;
-    setActiveTab(id);
+    if (id === 'inicio') {
+      navigate('/dashboard');
+    } else {
+      navigate(`/dashboard/${id}`);
+    }
   };
 
   const renderContent = () => {
