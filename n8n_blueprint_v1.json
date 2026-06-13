@@ -1,0 +1,2548 @@
+{
+  "name": "Recuperación de Carritos - Suna",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nueva-orden-plantbased",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -416,
+        -448
+      ],
+      "id": "57423600-8fdd-42dd-8991-cda1d0e236a3",
+      "name": "Webhook",
+      "webhookId": "49ef6fc8-b7b5-4912-9344-0716fc8e4245"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\", \n  \"message\": \"Orden recibida correctamente\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -192,
+        -544
+      ],
+      "id": "ecc63fa7-4656-47fb-bc1c-a51d301516f0",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apuntamos directamente a order.body\nconst order = items[0].json.body;\nconst data = order ? order : items[0].json;\n\n// Extraemos los campos principales\nconst cliente = data.cliente?.nombre || \"Sin nombre\";\nconst telefono = data.cliente?.telefono || \"No proporcionado\";\nconst total = data.total || 0;\nconst idOrden = data.orden_id || \"000\";\n\n// Mapeamos el tipo de entrega\nlet tipo = '🥡 Para Recoger en Tienda';\nif (data.tipo_entrega === 'delivery') {\n    tipo = '🛵 Delivery a Domicilio';\n} else if (data.tipo_entrega === 'salon') {\n    tipo = '🍽️ Consumo en Salón';\n}\n\n// Procesamos el array de platos (AJUSTADO A TU JSON REAL)\nconst filtradoItems = (data.items || []).filter(item => item !== null);\nconst listaPlatos = filtradoItems.map(item => {\n    // Aquí cambiamos 'nombre' por 'plato' y 'precio' por 'precio_unitario'\n    const nombrePlato = item.plato || 'Plato sin nombre';\n    const precio = item.precio_unitario || 0;\n    const cantidad = item.cantidad || 1;\n    \n    return `- ${cantidad}x ${nombrePlato} (S/. ${precio.toFixed(2)})`;\n}).join('\\n');\n\nconst textoPlatos = listaPlatos || \"- Sin productos específicos\";\n\n// Construimos el mensaje final\nconst mensaje = `🛍️ *NUEVA COMPRA RECIBIDA! (#${idOrden.split('-')[0]})*\n----------------------------------\n📍 *Canal:* ${tipo}\n👤 *Cliente:* ${cliente}\n📞 *Teléfono:* ${telefono}\n\n📦 *Detalle del Pedido:*\n${textoPlatos}\n----------------------------------\n💰 *Monto Total:* S/. ${total.toFixed(2)}\n\n⚡ _Por favor, cambiar el estado a \"En Cocina\" en el Dashboard._ 🌱`;\n\n// Extracción dinámica del destinatario\nconst destinatarioFinal = data.restaurante_grupo_whatsapp || data.restaurante_telefono;\n\nreturn {\n    json: {\n        number: destinatarioFinal, \n        text: mensaje\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        -352
+      ],
+      "id": "a43c472b-4efb-47ed-97fe-9a043081ea65",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.koratflow.agency/message/sendText/{{ $('Webhook').item.json.body.evolution_instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Webhook').item.json.body.evolution_api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.number }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        32,
+        -352
+      ],
+      "id": "dcaaa3dd-8c41-4803-aa3a-de82616fdc07",
+      "name": "📤 Despacho de Respuesta (Bloque 1)"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot-plantbased-entrada",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -384,
+        704
+      ],
+      "id": "895e2fc5-8841-46fb-92e5-546bba5a66bd",
+      "name": "Webhook1",
+      "webhookId": "49ef6fc8-b7b5-4912-9344-0716fc8e4245"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Texto Final').item.json.input_para_ia }}",
+        "options": {
+          "systemMessage": "=Eres la Inteligencia Artificial de atención al cliente de un restaurante 100% plant-based en Perú. Tu objetivo es responder dudas de manera empática, rápida y guiar al usuario a comprar en la Webapp.\n\nPara responder las preguntas sobre la carta, ingredientes o disponibilidad, el sistema te proporcionará un fragmento de datos filtrados en tiempo real desde la base de datos aquí:\n---------\nCONTEXTO DE PLATOS DISPONIBLES:\n{{ $json.body }}\n---------\n\n# REGLAS DE PROCESAMIENTO RESTRICIDAS (Año 2026):\n\n1. Si el \"CONTEXTO DE PLATOS DISPONIBLES\" contiene información de productos, utilízala para detallar los ingredientes, el nombre exacto del plato y su precio en Soles (S/.).\n2. Si el usuario pregunta por un plato o ingrediente específico y el contexto viene VACÍO o dice que no hay coincidencias, significa que NO lo tenemos en el menú actualmente o NO está disponible por temporada. Dile amablemente que no contamos con esa opción por el momento, pero recomiéndale que revise nuestra Webapp para ver otras delicias disponibles. ¡NUNCA inventes platos que no estén en el contexto!\n3. Si el cliente solo está saludando o haciendo una pregunta general (como horarios o dirección), responde usando tu conocimiento general del local y mantén el tono cálido.\n4. Cierra SIEMPRE tu mensaje con un llamado a la acción entusiasta invitándolo a armar su pedido en el link de la Webapp PWA del restaurante.\n\n# REGLAS DE USO DE HERRAMIENTAS:\n1. Si el usuario te pregunta por platos, comida o ingredientes, utiliza de inmediato la herramienta \"consultar_carta_y_disponibilidad\".\n2. Si al usar la herramienta el sistema no te devuelve ninguna coincidencia o el resultado está vacío, significa estrictamente que ese plato NO está en el menú actual del restaurante o NO está disponible por falta de insumos/temporada. En ese caso, dile amablemente al cliente que no cuentas con ese plato por el momento, pero invítalo a revisar la Webapp PWA en tiempo real para ver las opciones del día. ¡Jamás inventes platos!\n3. Termina siempre tus respuestas enviando el link oficial de la Webapp PWA para que el cliente finalice su pedido.\n4. \"Nunca inventes platos que no estén en el resultado de la base de datos.\"\n5. \"Si la búsqueda devuelve platos pero están marcados como disponible=false (aunque ya lo filtramos en SQL por si acaso), diles que están agotados.\"\n\n# PROTOCOLO DE PAGOS Y VOUCHERS\nEl cliente te enviará la foto de su voucher. Usa tu herramienta de visión para leerlo.\nUna vez que la visión te devuelva el JSON, DEBES usar la herramienta \"auditor_de_pagos\".\nLe enviarás a la herramienta los datos extraídos de la imagen y el ID de la orden actual del cliente.\n\nSI LA HERRAMIENTA RESPONDE \"EXITO\":\nDile al cliente: \"¡Pago verificado exitosamente! 🥳 La cocina ya empezó a preparar tu pedido. Te avisaré cuando esté en camino.\"\n\nSI LA HERRAMIENTA RESPONDE \"ERROR\" O \"MONTO_INSUFICIENTE\":\nDile al cliente: \"Hay un problema con la validación de tu pago. [Menciona el motivo exacto que te dio la herramienta]. Por favor, un humano de caja lo revisará en breve.\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        3264,
+        608
+      ],
+      "id": "a60655f4-37a1-4f5a-8c53-096edc99ced0",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tipo_archivo }}",
+                    "rightValue": "imagen",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "da4f598d-f9f7-4db2-8e1d-b9337e93095c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Image"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3a550dd0-8cfb-40aa-aa69-45494c9c5f3b",
+                    "leftValue": "={{ $json.tipo_archivo }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Default"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        288,
+        688
+      ],
+      "id": "0b985f3f-ee84-4e56-af36-a103e9b1a8d3",
+      "name": "🚦 Enrutador de Intenciones (NLU)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "75763bf9-8929-47a6-a22c-be99e63d157e",
+              "name": "texto_limpio",
+              "value": "={{ $json.message_content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1184,
+        800
+      ],
+      "id": "69c3d3bb-7873-4867-b36a-2c798ca0b68d",
+      "name": "📝 Normalización de Texto Plano"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3612ff96-3d4e-477b-acbc-cddc9668a8a5",
+              "name": "input_para_ia",
+              "value": "={{ $json.texto_limpio }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1408,
+        608
+      ],
+      "id": "375a1e50-f1b7-4dc7-bf4a-1a925aa6cc91",
+      "name": "Texto Final"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "clean-binary",
+              "name": "texto_limpio",
+              "value": "={{ $json.content.parts[0].text }} (Descripción de imagen)",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8148d722-76d6-4923-b919-49debd2b1185",
+      "name": "🖼️ Refinado de Descripción Visual",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1184,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "id": "5d7d7c96-31ea-4271-b2bb-7080df3be270",
+      "name": "🎙️ Reconocimiento de Voz (STT)",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        960,
+        608
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "8Hk1HK6oZJJDtr4q",
+          "name": "prueba gratiis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "05a223b1-3460-48a0-aab2-966dc57f55dc",
+      "name": "🎙️ Refinado de Transcripción Audio",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1184,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.server_url }}chat/getBase64FromMediaMessage/{{ $json.instance_name }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.evo_apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message.key.id",
+              "value": "={{ $('Edit Fields1').item.json.message.key.id }}"
+            },
+            {
+              "name": "convertToMp4",
+              "value": "={{Boolean(false)}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "57d4d5ea-73a0-4eba-a63b-d03dfaa85a4a",
+      "name": "📥 Descarga de Voz (Evo API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        512,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        736,
+        608
+      ],
+      "id": "797e8412-8565-462e-85c6-23b4da175ec7",
+      "name": "⚙️ Procesador Binario Audio"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.server_url }}chat/getBase64FromMediaMessage/{{ $json.instance_name }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.evo_apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message.key.id",
+              "value": "={{ $('Edit Fields1').item.json.message.key.id }}"
+            },
+            {
+              "name": "convertToMp4",
+              "value": "={{Boolean(false)}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "24bd03ae-17a6-4f93-b17e-be71b5b95aed",
+      "name": "📥 Descarga de Imagen (Evo API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        512,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        736,
+        416
+      ],
+      "id": "0942b437-27bd-4779-bed8-f1da4c7a82ca",
+      "name": "⚙️ Procesador Binario Visual"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e291e325-fdc6-4bf7-963c-d1ced2c28429",
+              "name": "tipo_archivo",
+              "value": "={{ $('Webhook1').item.json.body.data.messageType }}",
+              "type": "string"
+            },
+            {
+              "id": "4bf5d550-606b-47e7-a967-9bf186a16d7d",
+              "name": "message_content",
+              "value": "={{ $('Webhook1').item.json.body.data.message.conversation || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "1a75e361-3ed1-41ad-9b63-0fa1c6a15fa8",
+              "name": "telefono",
+              "value": "={{ $('Webhook1').item.json.body.data.key.remoteJid.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "46c3b1eb-1ad0-41f8-a17c-d5ca2d4ef942",
+              "name": "remoteJid",
+              "value": "={{ $('Webhook1').item.json.body.data.key.remoteJid }}",
+              "type": "string"
+            },
+            {
+              "id": "cd259141-2527-4741-9302-6e80e50871ae",
+              "name": "nombre_instancia",
+              "value": "={{ $('Webhook1').item.json.body.instance }}",
+              "type": "string"
+            },
+            {
+              "id": "1681fbfc-9155-4240-9167-dd4eaf89cbf8",
+              "name": "telefono_restaurante",
+              "value": "={{ $json.body.sender.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "bfb1b337-6850-47e6-a4e9-10f777a694f9",
+              "name": "apikey",
+              "value": "={{ $json.body.apikey }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        64,
+        704
+      ],
+      "id": "66ba1ec4-896b-4e25-837d-21c8bdf5aeef",
+      "name": "🧩 Extracción de Metadatos WhatsApp"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('🧩 Extracción de Metadatos WhatsApp').item.json.remoteJid }}",
+        "tableName": "suna_chat_history",
+        "contextWindowLength": 7
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        3408,
+        368
+      ],
+      "id": "fe69001b-4c86-4255-944a-5412cba52e56",
+      "name": "💾 Memoria Contextual (Vector-Ready)",
+      "credentials": {
+        "postgres": {
+          "id": "NjInZ7LtVRoD5gmB",
+          "name": "Postgres account - supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        3184,
+        368
+      ],
+      "id": "1cc2263e-60c0-4e03-bc3e-ca600a35fc3b",
+      "name": "♊ Motor Gemini (Latencia Ultra-Baja)",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "8Hk1HK6oZJJDtr4q",
+          "name": "prueba gratiis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b4e01faf-3833-4c1c-9ecb-d3eab4a6d995",
+              "name": "texto_ia",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3664,
+        608
+      ],
+      "id": "a6a8eaf7-6cfe-4fe9-b2bd-418d9cd24c3b",
+      "name": "📦 Empaquetado de Respuesta IA"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $json.texto_ia || $json.output || \"\";\nconst problemas = [];\n\n// Patrones técnicos reales que debemos bloquear\nconst fugasReales = [\n  /supabase/i, \n  /postgresql/i, \n  /fetch failed/i, \n  /node_modules/i, \n  /ECONNREFUSED/i, \n  /\\[object Object\\]/i,\n  /undefined/i\n];\n\nfor (const patron of fugasReales) {\n  if (patron.test(output)) { \n    problemas.push(\"🔴 fuga_tecnica\"); \n    break; \n  }\n}\n\nif (output.trim().length === 0) {\n  problemas.push(\"🔴 respuesta_vacia\");\n}\n\nconst severidad = problemas.some(p => p.includes(\"🔴\")) ? \"CRITICO\" : \"WARNING\";\n\nif (problemas.length > 0) {\n  return [{ \n    json: { \n      output: \"¡Uy, perdona! Me distraje un segundo con mis plantas 🌿 ¿Me podrías repetir eso? Quiero asegurarme de darte el mejor consejo 💛\",\n      _paso: \"fallback\",\n      _guardia: {\n          problemas: problemas,\n          severidad: severidad,\n          outputOriginal: output.substring(0, 1000),\n          timestamp: new Date().toISOString()\n        }\n    }\n  }];\n}\n\nreturn [{ \n  json: { \n    ...$json,\n    output: output, \n    _paso: \"ok\" \n  } \n}];"
+      },
+      "id": "c2e1fd0a-8c97-42b9-95b2-2883ae3e9824",
+      "name": "🛡️ Firewall de Salida (Guardrails IA)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3888,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-error",
+              "leftValue": "={{ $json._paso }}",
+              "rightValue": "fallback",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4112,
+        608
+      ],
+      "id": "b5706ee6-55f2-4258-940c-ce1a8aed2396",
+      "name": "🔍 Filtro de Integridad Técnica"
+    },
+    {
+      "parameters": {
+        "jsCode": "const guardia = $json._guardia;\nif (!guardia) return [];\n\nlet mensajeUsuario = \"\";\ntry {\n  // Intentamos obtener el mensaje original del nodo de entrada de WhatsApp\n  const inputData = $('Edit Fields1').first();\n  if (inputData && inputData.json) {\n    mensajeUsuario = inputData.json.message_content || \"\";\n  }\n} catch (e) {}\n\nconst errorMsg = Array.isArray(guardia.problemas) ? guardia.problemas.join(\", \") : \"Error desconocido\";\n\nreturn [{\n  json: {\n    whatsapp_id: $('Set Preparacion').first().json.Numero_usuario || \"Desconocido\",\n    workflow_name: \"Mr. Green – Agente Botánico\",\n    nodo_fallido: \"Guardia de Respuesta\",\n    error_type: errorMsg,\n    severity: guardia.severidad || \"WARNING\",\n    original_output: guardia.outputOriginal ? guardia.outputOriginal.substring(0, 800) : \"\",\n    mensaje_usuario: mensajeUsuario ? mensajeUsuario.substring(0, 800) : \"\",\n    execution_id: $execution.id,\n    _guardia: guardia // Mantenemos el objeto para el siguiente nodo si es necesario\n  }\n}];"
+      },
+      "id": "bf962a56-1f6a-49ae-9c7e-df4ef5d2a056",
+      "name": "📝 Estructurador de Telemetría Ops",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://loroqhprmmqrnfkguxbf.supabase.co/rest/v1/mr_green_error_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=sb_publishable_e4aHnw75FJeAeKZpX0YkZA_D_OPfLAy"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxvcm9xaHBybW1xcm5ma2d1eGJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NTU2MjMsImV4cCI6MjA5MzMzMTYyM30.p0tv1oRE1mV3TvHK8nKsGoRRWvwwyUW1SjmGxmDrf74"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"whatsapp_id\": \"{{ $json.whatsapp_id }}\",\n  \"error_type\": \"{{ $json.error_type }}\",\n  \"severity\": \"{{ $json.severity }}\",\n  \"execution_id\": \"{{ $json.execution_id }}\",\n  \"error_details\": {\n     \"nodo_fallido\": \"{{ $json.nodo_fallido }}\",\n     \"mensaje_usuario\": \"{{ $json.mensaje_usuario }}\",\n     \"workflow\": \"{{ $json.workflow_name }}\"\n  },\n  \"original_output\": \"{{ $json.original_output }}\"\n}",
+        "options": {}
+      },
+      "id": "da441dde-a76d-45bf-bbba-981980954504",
+      "name": "🗄️ Bóveda de Logs (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4560,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const guardia = $json._guardia || {};\nconst problemas = guardia.problemas || [\"Error desconocido\"];\nconst telefono = $json.whatsapp_id || \"Desconocido\";\n\nconst mensaje = `🚨 *ALERTA MR. GREEN* 🚨\\n━━━━━━━━━━━━━━━━━━━━\\n❌ *Problemas detectados:*\\n${problemas.join('\\n')}\\n\\n👤 *Cliente:* \\`${telefono}\\`\\n🔗 *Ejecución:* \\`${$execution.id}\\`\\n\\n🤖 *Intentó decir:*\\n\"${guardia.outputOriginal || \"(vacío)\"}\"\\n━━━━━━━━━━━━━━━━━━━━`;\n\nreturn [{ json: { mensaje } }];"
+      },
+      "id": "84b6688c-b2cd-4754-b998-de2707ed4674",
+      "name": "📢 Notificador de Incidencias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "7133452360",
+        "text": "={{ $json.mensaje }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4560,
+        416
+      ],
+      "id": "d9cc4cce-bb7e-4e7a-acaa-e5fd69aa4bb5",
+      "name": "🚀 Canal de Alerta: Telegram Ops",
+      "webhookId": "6a21c411-f586-4e1a-814c-57d1d73ed1a3",
+      "credentials": {
+        "telegramApi": {
+          "id": "bA7XdmhpdZAYIBZE",
+          "name": "Telegram errors bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const texto = $json.output || \"\";\nconst longitud = texto.length;\nconst BASE_DELAY = 1500;\nconst MS_POR_CARACTER = 45;\nlet delayFinal = BASE_DELAY + (longitud * MS_POR_CARACTER);\nif (delayFinal > 8000) delayFinal = 8000;\nif (delayFinal < 1500) delayFinal = 1500;\n\nreturn [{\n    json: {\n        ...$json,\n        delay_ms: delayFinal,\n        delay_seconds: Math.ceil(delayFinal / 1000)\n    }\n}];"
+      },
+      "id": "a2d7f460-4480-4863-b371-8a44fa651987",
+      "name": "⏳ Algoritmo de Empatía UX",
+      "position": [
+        4336,
+        608
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "let fullText = $json.output || \"\";\nconst MAX_LENGTH = 450; // Límite seguro para un globo de texto\nlet part1 = \"\";\nlet part2 = \"\";\nlet needsSplit = false;\n\nif (fullText.length <= MAX_LENGTH) {\n    part1 = fullText;\n    needsSplit = false;\n} else {\n    needsSplit = true;\n    \n    // Buscamos el mejor punto de corte (Doble Enter, Enter, Punto o Espacio)\n    // Empezamos buscando desde el límite (MAX_LENGTH) hacia atrás\n    let splitIndex = fullText.lastIndexOf('\\n\\n', MAX_LENGTH);\n    \n    if (splitIndex === -1 || splitIndex < 150) {\n        splitIndex = fullText.lastIndexOf('\\n', MAX_LENGTH);\n    }\n    \n    if (splitIndex === -1 || splitIndex < 150) {\n        splitIndex = fullText.lastIndexOf('. ', MAX_LENGTH);\n    }\n    \n    if (splitIndex === -1 || splitIndex < 150) {\n        splitIndex = fullText.lastIndexOf(' ', MAX_LENGTH);\n    }\n\n    // Si no encontró ningún punto ideal, corta forzosamente en el límite\n    if (splitIndex === -1) splitIndex = MAX_LENGTH;\n\n    part1 = fullText.substring(0, splitIndex).trim();\n    part2 = fullText.substring(splitIndex).trim();\n}\n\nreturn [{ \n    json: { \n        part1, \n        part2, \n        needs_split: needsSplit, \n        delay_seconds: $json.delay_seconds || 4 \n    } \n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        608
+      ],
+      "id": "0539349a-7c3e-417a-9c3e-e272d9003000",
+      "name": "✂️ Segmentador Inteligente de Párrafos"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.koratflow.agency/chat/sendPresence/{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('🧩 Extracción de Metadatos WhatsApp').first().json.apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.telefono }}\",\n  \"presence\": \"composing\",\n  \"delay\": {{ $json.delay_seconds * 1000 }}\n}",
+        "options": {}
+      },
+      "id": "c73b88a4-3c14-4b4f-965e-adad27467ef4",
+      "name": "✍️ Emulación de Presencia (Typing...)",
+      "position": [
+        4784,
+        608
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('✂️ Segmentador Inteligente de Párrafos').item.json.delay_seconds|| 2 }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5008,
+        608
+      ],
+      "id": "aa502652-e930-4b7e-85b2-ad2689fdbe54",
+      "name": "⏲️ Pausa de Lectura (Dinámica)",
+      "webhookId": "38e90b0c-d792-43b0-8578-af51757c9f13"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-split",
+              "leftValue": "={{ $('✂️ Segmentador Inteligente de Párrafos').item.json.needs_split }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5456,
+        608
+      ],
+      "id": "650b62bc-d10e-4b7c-a9a1-738851c7759a",
+      "name": "❓ Bifurcador de Flujo de Salida"
+    },
+    {
+      "parameters": {
+        "amount": 4
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5904,
+        608
+      ],
+      "id": "9d5415ea-e1a5-47c6-9fb3-ef8404656785",
+      "name": "⏲️ Pausa de Lectura (Final)",
+      "webhookId": "fd82b9cb-b076-42e6-8fec-12095d74ab20"
+    },
+    {
+      "parameters": {},
+      "id": "45418ca6-5e24-49b1-96e9-3bcdb0f69052",
+      "name": "🚨 Error Trigger Mr. Green",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        4112,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.koratflow.agency/message/sendText/{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('🧩 Extracción de Metadatos WhatsApp').first().json.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('🧩 Extracción de Metadatos WhatsApp').first().json.telefono }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('✂️ Segmentador Inteligente de Párrafos').item.json.part1 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5232,
+        608
+      ],
+      "id": "039737b7-f2cb-4dcb-8c03-28adb11479d2",
+      "name": "📤 Despacho de Respuesta (Bloque 1)1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.koratflow.agency/message/sendText/{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('🧩 Extracción de Metadatos WhatsApp').first().json.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('🧩 Extracción de Metadatos WhatsApp').first().json.telefono }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('✂️ Segmentador Inteligente de Párrafos').item.json.part2 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        6128,
+        608
+      ],
+      "id": "03c64649-a43f-41ab-9f73-c979093a59eb",
+      "name": "📤 Despacho de Respuesta (Bloque Final)"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook-notificaciones",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -512,
+        -976
+      ],
+      "id": "06698a75-91e5-4ed6-9645-28c58cdf5492",
+      "name": "Webhook2",
+      "webhookId": "49ef6fc8-b7b5-4912-9344-0716fc8e4245"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\", \n  \"message\": \"Orden recibida correctamente\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -192,
+        -1072
+      ],
+      "id": "00a72c0c-e285-4516-b84b-71393857c821",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.nuevo_estado }}",
+                    "rightValue": "en_preparacion",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0597bc4f-dd16-40a9-aec1-557c48f48325"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "en_preparacion"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3aa4543b-2884-4b7c-b0a7-24b0d1c5aa7b",
+                    "leftValue": "={{ $json.body.nuevo_estado }}",
+                    "rightValue": "listo_para_recojo",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "listo_para_recojo"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "52c815a4-64bd-4eca-8bde-5625bcf0eeb6",
+                    "leftValue": "={{ $json.body.nuevo_estado }}",
+                    "rightValue": "en_camino",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "en_camino"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -192,
+        -880
+      ],
+      "id": "73685c90-73da-460a-b480-a499627323a6",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cd3c4eae-3fa8-43d9-9e9c-d2c76121448c",
+              "name": "mensaje",
+              "value": "=¡Hola {{ $json.body.cliente_nombre }}! 👋 Tu pedido #{{ $json.body.orden_id }} ya está en cocina y estará listo en unos minutos. 👨‍🍳🌱",
+              "type": "string"
+            },
+            {
+              "id": "f3127b57-7c27-493f-9c30-35f061209602",
+              "name": "telefono",
+              "value": "={{ $json.body.cliente_telefono }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        32,
+        -960
+      ],
+      "id": "08279e82-fda7-4bb5-b241-b325cdf43213",
+      "name": "Set Preparacion"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cd3c4eae-3fa8-43d9-9e9c-d2c76121448c",
+              "name": "mensaje",
+              "value": "={{ $json.body.nuevo_estado == 'listo_para_recojo' ? \"¡Hola \" + $json.body.cliente_nombre + \"! 👋 Tu pedido #\" + $json.body.orden_id.split('-')[0] + \" ya está listo en mostrador. ¡Te esperamos! 🌱\" : \"¡Buenas noticias, \" + $json.body.cliente_nombre + \"! 🛵💨 Tu pedido #\" + $json.body.orden_id.split('-')[0] + \" ya salió del restaurante y va en camino. Gracias por elegir alimentación consciente.\" }}",
+              "type": "string"
+            },
+            {
+              "id": "f3127b57-7c27-493f-9c30-35f061209602",
+              "name": "telefono",
+              "value": "={{ $json.body.cliente_telefono }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        32,
+        -768
+      ],
+      "id": "4953391c-da04-4638-ae78-954655e953a5",
+      "name": "Set Despacho"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash"
+        },
+        "text": "Eres el auditor financiero de \"Suna - GreenApp Gourmet\".\nRevisa este comprobante de pago (Yape, Plin o Transferencia).\n\nDevuelve EXCLUSIVAMENTE un JSON válido con estos campos:\n{\n  \"es_comprobante\": true, \n  \"fecha_hoy\": true, \n  \"monto\": 0.00, \n  \"destino\": \"Nombre de quien recibe\",\n  \"num_operacion\": \"12345678\"\n}\n\nREGLAS:\n- Si la imagen NO es un comprobante, devuelve {\"es_comprobante\": false}.\n- \"monto\": Solo el número en formato decimal (ej. 45.50).\n- \"num_operacion\": Busca \"Operación\", \"Nro de ref\", \"Código\" y extrae solo los números.\n- No escribas comillas invertidas (```json) ni texto adicional, SOLO el objeto.",
+        "inputType": "binary",
+        "options": {}
+      },
+      "id": "2330321d-ff32-4730-a11d-249a8694528d",
+      "name": "👁️ Visión Artificial: Restaurante",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        960,
+        416
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "8Hk1HK6oZJJDtr4q",
+          "name": "prueba gratiis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Úsala OBLIGATORIAMENTE cuando recibas los datos visuales de un comprobante de pago. Esta herramienta verifica si el monto es correcto, revisa fraudes y actualiza la base de datos.",
+        "workflowId": {
+          "__rl": true,
+          "value": "AdVlKMDWlHJDqmI7",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/AdVlKMDWlHJDqmI7",
+          "cachedResultName": "Verificar comprobante pago"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "orden_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('orden_id', ``, 'string') }}",
+            "monto_voucher": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('monto_voucher', ``, 'number') }}",
+            "url_imagen": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('url_imagen', ``, 'string') }}",
+            "nombre_instancia": "={{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}",
+            "num_operacion ": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('num_operacion_', ``, 'string') }}",
+            "destino_pago": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('destino_pago', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "orden_id",
+              "displayName": "orden_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "monto_voucher",
+              "displayName": "monto_voucher",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "url_imagen",
+              "displayName": "url_imagen",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "nombre_instancia",
+              "displayName": "nombre_instancia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "num_operacion ",
+              "displayName": "num_operacion ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "destino_pago",
+              "displayName": "destino_pago",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        3424,
+        1056
+      ],
+      "id": "9b169b03-7715-4ecd-9fd3-8ee8fa114b1b",
+      "name": "auditor_de_pago"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.koratflow.agency/message/sendText/{{ $('🛡️ Firewall de Salida (Guardrails IA)').item.json.nombre_instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('🛡️ Firewall de Salida (Guardrails IA)').item.json.api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.telefono }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        256,
+        -864
+      ],
+      "id": "11a4c1df-3d91-4ebb-b7ec-a582e5fee679",
+      "name": "envio mensaje whatsapp"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "=chat:{{ $('🧩 Extracción de Metadatos WhatsApp').item.json.nombre_instancia }}:{{ $('Webhook1').item.json.body.sender }}",
+        "messageData": "={{ $json.input_para_ia }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1632,
+        608
+      ],
+      "id": "24599418-5265-4a63-841e-ebf9e05167e1",
+      "name": "Guardar el mensaje en la lista",
+      "credentials": {
+        "redis": {
+          "id": "EuADGxjbd7NFqiyD",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        608
+      ],
+      "id": "479f5444-a45e-4651-b3ef-3910140dcd9d",
+      "name": "Wait",
+      "webhookId": "de6eee3d-537e-4cbf-9034-a3c9832a7265"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "saved_execution_id",
+        "key": "=last_run:{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}:{{ $('Webhook1').item.json.body.sender }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2304,
+        608
+      ],
+      "id": "8d5a7e8f-aec0-4917-9c86-feddc45ff2b1",
+      "name": "Revisar Candado",
+      "credentials": {
+        "redis": {
+          "id": "EuADGxjbd7NFqiyD",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "7b90ceda-efcb-480a-80c2-65a9bb9d0211",
+              "leftValue": "={{ $json.saved_execution_id }}",
+              "rightValue": "={{ $execution.id }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2528,
+        608
+      ],
+      "id": "1c1e0326-485d-475a-bf0d-e4dd0ad6bdb7",
+      "name": "El Juez"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=last_run:{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}:{{ $('Webhook1').item.json.body.sender }}",
+        "value": "={{ $execution.id }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1856,
+        608
+      ],
+      "id": "e519180a-8fe1-4fa9-9314-4ef00792167c",
+      "name": "Poner Candado",
+      "credentials": {
+        "redis": {
+          "id": "EuADGxjbd7NFqiyD",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pop",
+        "list": "=chat_history:{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}:{{ $('Webhook1').item.json.body.sender }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2752,
+        608
+      ],
+      "id": "00a2ead4-43a0-44c9-8e4a-955c3bc550d8",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "EuADGxjbd7NFqiyD",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=last_run:{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}:{{ $('Webhook1').item.json.body.sender }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2976,
+        608
+      ],
+      "id": "ad2707a8-8eca-440b-838f-bd25bd92c1e6",
+      "name": "Limpiar Candado",
+      "credentials": {
+        "redis": {
+          "id": "EuADGxjbd7NFqiyD",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2752,
+        800
+      ],
+      "id": "5cbe7397-7e0f-4e39-91ed-db4d07a5b366",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3568,
+        1232
+      ],
+      "id": "d6c7549e-f16d-4013-885f-843f1f211a4c",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "2UY2Mw6QNatcXpP8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Útil para buscar platos, ingredientes, precios, alérgenos y verificar la disponibilidad de los productos del menú en tiempo real. Actívala siempre que el usuario pregunte por comida, insumos o qué hay en la carta.",
+        "tableName": {
+          "__rl": true,
+          "value": "items_menu_embeddings",
+          "mode": "list",
+          "cachedResultName": "items_menu_embeddings"
+        },
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "restaurante_telefono",
+                "value": "={{ $('🧩 Extracción de Metadatos WhatsApp').item.json.telefono_restaurante }}"
+              },
+              {
+                "name": "disponible",
+                "value": "true"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        3584,
+        1040
+      ],
+      "id": "65f31039-c417-46f2-b715-5ceebcd14f87",
+      "name": "consultar_carta_y_disponibilidad",
+      "credentials": {
+        "supabaseApi": {
+          "id": "THqko8HfXSoYmuhQ",
+          "name": "Supabase Suna Vegan"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.koratflow.agency/chat/sendPresence/{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.nombre_instancia }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('🧩 Extracción de Metadatos WhatsApp').first().json.apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('🧩 Extracción de Metadatos WhatsApp').first().json.telefono }}\",\n  \"presence\": \"composing\",\n  \"delay\": 4000\n}",
+        "options": {}
+      },
+      "id": "fda27539-5a00-497b-a496-48c4661fa1c0",
+      "name": "✍️ Emulación de Presencia (Typing...)1",
+      "position": [
+        5696,
+        608
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "onboarding-ia",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "efe73f15-8b85-4330-b5c2-be66bf3859c8",
+      "name": "Webhook Onboarding",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -512,
+        -1888
+      ],
+      "webhookId": "onboarding-ia-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body;\nconst restaurante = payload.restaurante;\nconst platos = payload.platos;\n\nreturn platos.map(plato => ({\n  json: {\n    nombre: plato.nombre,\n    categoria: plato.categoria_nombre,\n    ingredientes: plato.ingredientes,\n    telefono: restaurante.telefono,\n    precio: plato.precio\n  }\n}));"
+      },
+      "id": "d8c5d695-bd63-43e6-9a2a-e1b392fd6a1f",
+      "name": "Separar Platos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        -1888
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "chatModel": "gpt-4.1-mini",
+        "prompt": {
+          "messages": [
+            {
+              "content": "=Eres un experto redactor gastronómico especializado en marketing B2B para restaurantes veganos y plant-based de alta gama. \n\n[INSTRUCCIONES]\n1. Toma los ingredientes base del plato y mejóralos convirtiéndolos en una descripción corta (máximo 2 líneas), elegante y sumamente apetitosa para un menú digital mobile-first.\n2. Está terminantemente prohibido inventar ingredientes nuevos o alterar la esencia del plato.\n3. No uses introducciones como \"Aquí tienes la descripción:\" o \"Esta es tu descripción:\". Ve directo al grano con el texto del plato.\n\n[DATOS DEL PLATO]\n- Plato: {{$json.nombre}}\n- Categoría: {{$json.categoria}}\n- Ingredientes base: {{$json.ingredientes}}"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "id": "d76cd5eb-bb49-46fc-ab50-81c4e97339b3",
+      "name": "Mejorar Descripción con IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.1,
+      "position": [
+        -48,
+        -1904
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "2UY2Mw6QNatcXpP8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Recuperamos la información original (antes de que la IA la borrara)\nconst originales = $items(\"Separar Platos\");\n\n// 2. Unimos el texto bonito de la IA con los datos originales\nreturn $input.all().map((item, index) => {\n  const original = originales[index].json;\n  \n  return {\n    json: {\n      // Usamos pageContent para que el Data Loader sepa qué es el texto\n      pageContent: `Plato: ${original.nombre}. Categoría: ${original.categoria}. Descripción: ${item.json.message.content}`,\n      \n      // Metemos los filtros en la carpeta metadata\n      metadata: {\n        restaurante_telefono: original.telefono,\n        disponible: true\n      }\n    }\n  };\n});"
+      },
+      "id": "aa818dc3-62e9-43b6-9758-497a8326a590",
+      "name": "Formatear para Vector Store",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        -1888
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "items_menu_embeddings",
+          "mode": "list",
+          "cachedResultName": "items_menu_embeddings"
+        },
+        "options": {}
+      },
+      "id": "40f9cb47-ed92-4225-9da4-6a852ce00a20",
+      "name": "Supabase Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -1888
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "THqko8HfXSoYmuhQ",
+          "name": "Supabase Suna Vegan"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.pageContent }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "restaurante_telefono",
+                "value": "={{ $json.metadata.restaurante_telefono }}"
+              },
+              {
+                "name": "disponible",
+                "value": "={{ $json.metadata.disponible }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "2781d430-f37d-4dcb-8cac-eafbd502f896",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        656,
+        -1696
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "b83834ae-28ac-4130-b840-9d955fd0cac5",
+      "name": "Responder a React",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        848,
+        -1888
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "81f8ed69-b8bc-482f-8fe0-e2c418f89168",
+      "name": "Embeddings OpenAI1",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        -1696
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "2UY2Mw6QNatcXpP8",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        768,
+        -1536
+      ],
+      "id": "eb45a3f9-be81-4ad3-a17c-ad1a25afa7ff",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "content": "## 🛍️ FLUJO 3: Alerta Instantánea de Nuevas Compras\nNotifica inmediatamente al grupo de WhatsApp del restaurante cuando entra una nueva orden.\n\n### 1️⃣ ENTRADA (Webhook)\n- Recibe el payload completo de la nueva orden desde la Webapp de Suna.\n\n### 2️⃣ FORMATEO DE TICKET (JavaScript)\n- Extrae el cliente, teléfono, dirección, tipo de entrega (Delivery/Mesa/Recojo), platos detallados con precio y el total.\n- Genera un mensaje formateado y amigable.\n\n### 3️⃣ DESPACHO (Evolution API)\n- Envía el ticket al grupo de WhatsApp del personal de cocina/caja del restaurante para agilizar la preparación.",
+        "height": 500,
+        "width": 848,
+        "color": "#fef9c3"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -560,
+        -608
+      ],
+      "typeVersion": 1,
+      "id": "8d4ef4e9-9832-4ef3-84f9-ac66ee663863",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## 🛵 FLUJO 2: Notificación Automatizada de Cambios de Estado\nNotifica al cliente el estado de su pedido en tiempo real a través de WhatsApp.\n\n### 1️⃣ TRIGGER (Webhook2)\n- Se activa cuando el restaurante cambia el estado del pedido en su panel administrativo.\n\n### 2️⃣ RESOLUCIÓN DE RESTAURANTE\n- Consulta en Supabase las credenciales (Evolution API instance y apikey) del restaurante correspondiente.\n\n### 3️⃣ PERSONALIZACIÓN DE MENSAJES (Switch)\n- Determina qué mensaje enviar según el estado:\n  - **En Cocina**: \"Tu pedido ya está en preparación... 🌱\"\n  - **Listo para Delivery / Recojo**: \"¡Tu pedido está listo! 🛵💨\"\n\n### 4️⃣ ENVÍO (Evolution API)\n- Envía el mensaje directamente al WhatsApp del cliente final.",
+        "height": 650,
+        "width": 1056,
+        "color": "#dbeafe"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -544,
+        -1264
+      ],
+      "typeVersion": 1,
+      "id": "ee711f25-b71f-41a3-b0ea-24c3f358837f",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "df353903-d130-4208-bf82-85845b45a8fa",
+      "name": "⏱️ Cada 15 Minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -368,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cliente = $json.cliente_nombre || \"Amigo(a)\";\nconst telefono = $json.cliente_telefono;\nconst idOrden = $json.orden_id;\nconst total = $json.total;\n\n// Construimos el mensaje persuasivo y empático\nconst mensaje = `¡Hola ${cliente}! 🌿 Noté que estabas armando un pedido delicioso hace un ratito pero lo dejaste a medias (S/. ${total}). \\n\\n¿Tuviste algún inconveniente técnico o te quedó alguna duda con los ingredientes? 🤔 \\n\\nRecuerda que preparamos todo fresco y el stock de algunos platillos vuela rápido 🏃‍♂️💨. Si quieres terminar tu pedido, puedes hacerlo ingresando a la Webapp.\\n\\n¡Avísame si necesitas ayuda!`;\n\nreturn {\n  json: {\n    numero_destino: telefono,\n    mensaje: mensaje\n  }\n};"
+      },
+      "id": "12201cad-b0a0-4927-83c2-540cf30497ca",
+      "name": "📝 Redactar Mensaje Persuasivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        1504
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evo.koratflow.agency/message/sendText/kr1778174724675",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "E62DC67A-C46B-439F-B4F2-17CD95A4DBEE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=51{{ $json.numero_destino }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1e575f1d-4eb8-4a40-8091-d8add9570519",
+      "name": "📤 Enviar WhatsApp (Evolution API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        320,
+        1504
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://avyczuzeltsawbjvbawa.supabase.co/rest/v1/rpc/get_abandoned_carts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=sb_publishable_l0RHxVJrwx6OJNL-HxLnrw_5QcZROUm"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2eWN6dXplbHRzYXdianZiYXdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjUzNDMsImV4cCI6MjA5NDkwMTM0M30.bigsEHAYcnusz_0C7qCKA8IFtns_7p0SQWGfEcwZ6qc"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "32a3a40f-b515-4092-842a-41b2cd7d8cf9",
+      "name": "🔍 Buscar Carritos Abandonados (Supabase RPC)",
+      "position": [
+        -128,
+        1504
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4
+    },
+    {
+      "parameters": {
+        "content": "## 🤖 FLUJO 4: Asistente IA Omnicanal (Mr. Green)\nAtención al cliente automatizada por WhatsApp que resuelve dudas y audita comprobantes de pago.\n\n### 🔑 CREDENCIALES CONFIGURADAS\n- Instance ID: `kr1778174724675`\n- API Key: `E62DC67A-C46B-439F-B4F2-17CD95A4DBEE`\n\n### 1️⃣ ENTRADA MULTIMEDIA\n- Recibe mensajes del cliente. Un enrutador (Switch) clasifica:\n  - **Texto Plano**: Normaliza el texto.\n  - **Audios**: Descarga el archivo de voz, usa Gemini STT para transcribir y procesa.\n  - **Imágenes (Vouchers)**: Descarga la imagen, usa Gemini Vision para extraer datos y audita el pago con el `auditor_de_pago`.\n\n### 2️⃣ AGENTE INTELIGENTE (LangChain Agent + Gemini)\n- Utiliza memoria persistente en PostgreSQL (`suna_chat_history`) para recordar la conversación.\n- Posee herramientas para responder preguntas de la carta (`consultar_carta_y_disponibilidad` vía RAG) y verificar pagos (`auditor_de_pago`).\n\n### 3️⃣ SEGURIDAD Y CONTROL DE CALIDAD\n- **Firewall de Salida (Guardrails IA)**: Código JS que detecta fugas de variables o errores técnicos antes de enviar. Si detecta algo, envía un mensaje de fallback y notifica a Telegram Ops.\n\n### 4️⃣ COMPORTAMIENTO HUMANO (UX)\n- Calcula un retraso dinámico según la longitud del mensaje.\n- Muestra el estado \"escribiendo...\" en WhatsApp.\n- Divide párrafos largos para que se lean de forma natural.",
+        "color": "#f3e8ff",
+        "width": 1400,
+        "height": 850
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1264,
+        896
+      ],
+      "typeVersion": 1,
+      "id": "ba3d6108-253e-4546-a0f9-261ac850620a",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## 🛒 FLUJO 5: Recuperación de Ventas y Carritos Abandonados\nRecupera clientes que iniciaron conversación o agregaron productos pero no finalizaron la compra.\n\n### 💡 DOLOR DEL NEGOCIO RESUELTO:\n- En el mundo vegano/plant-based, los clientes tienen muchas dudas sobre trazas, gluten, si lleva miel, etc. Perder esa respuesta rápida significa perder la venta.\n- Si el usuario interactuó con el chatbot, vio el menú pero no compró, se inicia este flujo de recuperación.\n\n### 1️⃣ ACTIVACIÓN (Cada 15 Minutos)\n- Un cron trigger ejecuta este flujo de forma periódica.\n\n### 2️⃣ CONSULTA DE ABANDONO\n- Llama a un procedimiento RPC en Supabase para obtener las sesiones sin compra finalizada en los últimos 30 minutos.\n\n### 3️⃣ REDACCIÓN PERSUASIVA\n- Prepara un mensaje personalizado destacando promociones de postres plant-based o consultando si tuvo dudas con ingredientes/alérgenos.\n\n### 4️⃣ DISPACHO (Evolution API)\n- Envía un mensaje recordatorio por WhatsApp con el link de la Webapp para finalizar la compra.",
+        "height": 520,
+        "width": 1376,
+        "color": "#ffe4e6"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -432,
+        1296
+      ],
+      "typeVersion": 1,
+      "id": "d7092d35-e5f1-4220-9c88-3e41b264ce60",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## 🌿 FLUJO 1: Onboarding y Enriquecimiento de Menú con IA y RAG\nEste flujo procesa nuevos platos cuando un restaurante se registra o actualiza su menú.\n\n### 1️⃣ RECEPCIÓN (Webhook Onboarding)\n- Recibe los platos desde la base de datos de la Webapp de Suna.\n- `Separar Platos` divide la lista para procesarlos uno a uno.\n\n### 2️⃣ OPTIMIZACIÓN (Mejorar Descripción con IA)\n- OpenAI reescribe los nombres y descripciones para hacerlos más apetitosos y resaltar alérgenos e ingredientes plant-based (ej: trazas de gluten, sustitutos veganos).\n\n### 3️⃣ EMBEDDING Y VECTOR STORE (RAG)\n- Genera vectores con OpenAI Embeddings.\n- Guarda la información vectorizada en Supabase para que el chatbot (`Mr. Green`) pueda consultar ingredientes y disponibilidad en tiempo real.\n\n### 4️⃣ RESPUESTA\n- Retorna el estatus de éxito a la frontend en React.",
+        "height": 650,
+        "width": 1648,
+        "color": "#dcfce7"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -592,
+        -1984
+      ],
+      "typeVersion": 1,
+      "id": "55f66122-b23d-43c4-9c0c-27acedfa096d",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "restaurantes",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        -880
+      ],
+      "id": "284cd53b-3b22-4c4f-a1fe-22dcedda418e",
+      "name": "traer datos de  instancia de cada restaurante",
+      "credentials": {
+        "supabaseApi": {
+          "id": "THqko8HfXSoYmuhQ",
+          "name": "Supabase Suna Vegan"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "📤 Despacho de Respuesta (Bloque 1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "🧩 Extracción de Metadatos WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚦 Enrutador de Intenciones (NLU)": {
+      "main": [
+        [
+          {
+            "node": "📥 Descarga de Imagen (Evo API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📥 Descarga de Voz (Evo API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📝 Normalización de Texto Plano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Normalización de Texto Plano": {
+      "main": [
+        [
+          {
+            "node": "Texto Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🖼️ Refinado de Descripción Visual": {
+      "main": [
+        [
+          {
+            "node": "Texto Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ Reconocimiento de Voz (STT)": {
+      "main": [
+        [
+          {
+            "node": "🎙️ Refinado de Transcripción Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎙️ Refinado de Transcripción Audio": {
+      "main": [
+        [
+          {
+            "node": "Texto Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 Descarga de Voz (Evo API)": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Procesador Binario Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Procesador Binario Audio": {
+      "main": [
+        [
+          {
+            "node": "🎙️ Reconocimiento de Voz (STT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 Descarga de Imagen (Evo API)": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Procesador Binario Visual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Procesador Binario Visual": {
+      "main": [
+        [
+          {
+            "node": "👁️ Visión Artificial: Restaurante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧩 Extracción de Metadatos WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "🚦 Enrutador de Intenciones (NLU)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto Final": {
+      "main": [
+        [
+          {
+            "node": "Guardar el mensaje en la lista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Memoria Contextual (Vector-Ready)": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "♊ Motor Gemini (Latencia Ultra-Baja)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Empaquetado de Respuesta IA": {
+      "main": [
+        [
+          {
+            "node": "🛡️ Firewall de Salida (Guardrails IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🛡️ Firewall de Salida (Guardrails IA)": {
+      "main": [
+        [
+          {
+            "node": "🔍 Filtro de Integridad Técnica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Filtro de Integridad Técnica": {
+      "main": [
+        [
+          {
+            "node": "📢 Notificador de Incidencias",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📝 Estructurador de Telemetría Ops",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏳ Algoritmo de Empatía UX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Estructurador de Telemetría Ops": {
+      "main": [
+        [
+          {
+            "node": "🗄️ Bóveda de Logs (Supabase)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📢 Notificador de Incidencias": {
+      "main": [
+        [
+          {
+            "node": "🚀 Canal de Alerta: Telegram Ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ Algoritmo de Empatía UX": {
+      "main": [
+        [
+          {
+            "node": "✂️ Segmentador Inteligente de Párrafos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✂️ Segmentador Inteligente de Párrafos": {
+      "main": [
+        [
+          {
+            "node": "✍️ Emulación de Presencia (Typing...)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✍️ Emulación de Presencia (Typing...)": {
+      "main": [
+        [
+          {
+            "node": "⏲️ Pausa de Lectura (Dinámica)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏲️ Pausa de Lectura (Dinámica)": {
+      "main": [
+        [
+          {
+            "node": "📤 Despacho de Respuesta (Bloque 1)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Bifurcador de Flujo de Salida": {
+      "main": [
+        [
+          {
+            "node": "✍️ Emulación de Presencia (Typing...)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏲️ Pausa de Lectura (Final)": {
+      "main": [
+        [
+          {
+            "node": "📤 Despacho de Respuesta (Bloque Final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Error Trigger Mr. Green": {
+      "main": [
+        [
+          {
+            "node": "📝 Estructurador de Telemetría Ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Despacho de Respuesta (Bloque 1)1": {
+      "main": [
+        [
+          {
+            "node": "❓ Bifurcador de Flujo de Salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "📦 Empaquetado de Respuesta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "traer datos de  instancia de cada restaurante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook1": {
+      "main": [
+        []
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Set Preparacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Despacho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Despacho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Preparacion": {
+      "main": [
+        [
+          {
+            "node": "envio mensaje whatsapp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Despacho": {
+      "main": [
+        [
+          {
+            "node": "envio mensaje whatsapp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👁️ Visión Artificial: Restaurante": {
+      "main": [
+        [
+          {
+            "node": "🖼️ Refinado de Descripción Visual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "auditor_de_pago": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar el mensaje en la lista": {
+      "main": [
+        [
+          {
+            "node": "Poner Candado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Revisar Candado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revisar Candado": {
+      "main": [
+        [
+          {
+            "node": "El Juez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "El Juez": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poner Candado": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Limpiar Candado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar Candado": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "consultar_carta_y_disponibilidad",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_carta_y_disponibilidad": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✍️ Emulación de Presencia (Typing...)1": {
+      "main": [
+        [
+          {
+            "node": "⏲️ Pausa de Lectura (Final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Onboarding": {
+      "main": [
+        [
+          {
+            "node": "Separar Platos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Platos": {
+      "main": [
+        [
+          {
+            "node": "Mejorar Descripción con IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mejorar Descripción con IA": {
+      "main": [
+        [
+          {
+            "node": "Formatear para Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear para Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Responder a React",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏱️ Cada 15 Minutos": {
+      "main": [
+        [
+          {
+            "node": "🔍 Buscar Carritos Abandonados (Supabase RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Redactar Mensaje Persuasivo": {
+      "main": [
+        [
+          {
+            "node": "📤 Enviar WhatsApp (Evolution API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Buscar Carritos Abandonados (Supabase RPC)": {
+      "main": [
+        [
+          {
+            "node": "📝 Redactar Mensaje Persuasivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "traer datos de  instancia de cada restaurante": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
