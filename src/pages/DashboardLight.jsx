@@ -7,6 +7,7 @@ import DashboardHome     from './dashboard/DashboardHome.jsx';
 import DashboardCarta    from './dashboard/DashboardCarta.jsx';
 import DashboardMetricas from './dashboard/DashboardMetricas.jsx';
 import DashboardInventario from './dashboard/DashboardInventario.jsx';
+import DashboardMarketing from './dashboard/DashboardMarketing.jsx';
 import DesktopSidebar from '../components/DesktopSidebar.jsx';
 
 
@@ -47,12 +48,19 @@ const IcoInventario = ({ active }) => (
     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
   </svg>
 );
+const IcoMarketing = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? '#1B4332' : '#8A8070'} strokeWidth="2" strokeLinecap="round">
+    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+  </svg>
+);
 
 const TABS = [
   { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
   { id: 'pedidos',    label: 'Pedidos',     Icon: IcoPedidos },
   { id: 'carta',      label: 'Carta',       Icon: IcoCarta },
   { id: 'inventario', label: 'Inventario',  Icon: IcoInventario },
+  { id: 'marketing',  label: 'Marketing',   Icon: IcoMarketing },
   { id: 'metricas',   label: 'Métricas',    Icon: IcoMetricas },
 ];
 
@@ -142,6 +150,7 @@ export default function DashboardLight() {
     if (r.startsWith('/dashboard/pedidos'))    return 'pedidos';
     if (r.startsWith('/dashboard/carta'))      return 'carta';
     if (r.startsWith('/dashboard/inventario')) return 'inventario';
+    if (r.startsWith('/dashboard/marketing'))  return 'marketing';
     if (r.startsWith('/dashboard/metricas'))   return 'metricas';
     return 'inicio';
   };
@@ -183,6 +192,7 @@ export default function DashboardLight() {
       case 'pedidos':  return <Admin key={activeRestaurant?.id}/>;
       case 'carta':    return <DashboardCarta/>;
       case 'inventario': return <DashboardInventario/>;
+      case 'marketing':  return <DashboardMarketing/>;
       case 'metricas': return <DashboardMetricas/>;
       default:         return <DashboardHome onNavigate={switchTab}/>;
     }

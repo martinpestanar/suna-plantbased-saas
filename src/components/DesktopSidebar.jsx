@@ -13,6 +13,7 @@ export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onL
     { id: 'pedidos', icon: '👨‍🍳', label: 'Pedidos' },
     { id: 'carta', icon: '📋', label: 'Carta del Menú' },
     { id: 'inventario', icon: '📦', label: 'Inventario' },
+    { id: 'marketing', icon: '🚀', label: 'Marketing' },
     { id: 'metricas', icon: '📊', label: 'Métricas' },
   ];
 

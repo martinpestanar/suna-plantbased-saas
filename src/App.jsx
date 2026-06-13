@@ -678,6 +678,68 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* Carrusel de Ofertas Relámpago */}
+                  {tab === 'menu' && catId === 'all' && !query && items.some(i => i.en_oferta) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '8px 0 16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 900, color: 'var(--color-on-surface)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          🔥 Ofertas del Día
+                        </span>
+                        <span style={{ fontSize: 9, color: 'var(--color-danger)', fontWeight: 800, background: '#FEE2E2', padding: '3px 8px', borderRadius: 12 }}>
+                          Solo por Hoy
+                        </span>
+                      </div>
+                      
+                      {/* Carrusel scroll horizontal */}
+                      <div className="promo-carousel" style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: '4px 0 10px', margin: '0 -20px', paddingLeft: 20, paddingRight: 20 }}>
+                        {items.filter(i => i.en_oferta).map(item => (
+                          <div
+                            key={`promo-${item.id}`}
+                            onClick={() => addItem(item.id)}
+                            className="promo-carousel-card"
+                            style={{
+                              flexShrink: 0, width: 160, background: 'linear-gradient(135deg, rgba(64,145,108,0.1) 0%, rgba(27,67,50,0.04) 100%)',
+                              border: '1.5px solid rgba(64,145,108,0.25)', borderRadius: 20, padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
+                              cursor: 'pointer', position: 'relative', overflow: 'hidden',
+                              boxShadow: '0 4px 12px rgba(27,67,50,0.06)'
+                            }}
+                          >
+                            <img
+                              src={item.imagen_url}
+                              alt={item.nombre}
+                              style={{ width: '100%', height: 90, borderRadius: 14, objectFit: 'cover', background: 'var(--color-surface-3)' }}
+                            />
+                            {item.etiqueta_promo && (
+                              <span style={{ position: 'absolute', top: 18, left: 18, background: 'var(--color-danger)', color: '#fff', fontSize: 8, fontWeight: 800, padding: '2px 6px', borderRadius: 6, textTransform: 'uppercase' }}>
+                                {item.etiqueta_promo}
+                              </span>
+                            )}
+                            <div>
+                              <p style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {item.nombre}
+                              </p>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+                                <span style={{ fontSize: 10, color: 'var(--color-muted)', textDecoration: 'line-through' }}>S/. {item.precio.toFixed(2)}</span>
+                                <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--color-danger)' }}>S/. {item.precio_oferta?.toFixed(2)}</span>
+                              </div>
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); addItem(item.id); }}
+                              style={{
+                                width: '100%', padding: '6px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10,
+                                fontSize: 10, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4
+                              }}
+                            >
+                              ➕ Agregar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Contador de resultados */}
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:2 }}>
                     <span style={{ fontFamily:'var(--font-display)', fontSize:13, fontWeight:800, color:'var(--color-on-surface)', textTransform:'uppercase', letterSpacing:'0.04em' }}>

@@ -1942,3 +1942,25 @@ body {
   }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   CAROUSEL PROMO
+   ───────────────────────────────────────────────────────────── */
+.promo-carousel::-webkit-scrollbar {
+  display: none !important;
+}
+.promo-carousel {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.promo-carousel-card {
+  transition: transform var(--duration-fast) var(--ease-spring), box-shadow var(--duration-fast);
+}
+.promo-carousel-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(27,67,50,0.12) !important;
+}
+.promo-carousel-card:active {
+  transform: scale(0.97);
+}
+
+
