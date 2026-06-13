@@ -147,7 +147,7 @@ export default function App() {
           supabase.from('combo_del_dia').select('*').eq('activo', true).order('created_at', { ascending: false }).limit(1),
         ]);
         if (res?.[0])   setRestaurant(res[0]);
-        if (catData?.length) { setCats(catData); setCatId(catData[0].id); }
+        if (catData?.length) { setCats(catData); setCatId('all'); }
         if (itemData?.length) {
           setItems(itemData.map(i => ({
             ...i,
@@ -160,7 +160,7 @@ export default function App() {
         }
       } catch (e) {
         console.error('DB offline, usando datos demo', e);
-        setCatId(FALLBACK_CATS[0].id);
+        setCatId('all');
       } finally {
         setLoading(false);
       }
