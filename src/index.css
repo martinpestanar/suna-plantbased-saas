@@ -698,7 +698,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px 14px;
+  padding: 8px 20px 8px;
   border-bottom: 1px solid transparent;
   background-image: linear-gradient(var(--color-surface), var(--color-surface)),
     linear-gradient(to right, var(--color-surface-3) 0%, transparent 50%, var(--color-surface-3) 100%);
@@ -753,14 +753,15 @@ body {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   HERO BANNER — Inmersivo con glassmorphism
+   HERO / COMBO BANNER — Inmersivo, de 2 columnas y compacto (max 125px)
    ───────────────────────────────────────────────────────────── */
 .hero-banner {
   position: relative;
-  border-radius: 24px;
+  border-radius: 20px;
   overflow: hidden;
   margin-bottom: 6px;
-  min-height: 160px;
+  min-height: 110px;
+  max-height: 125px;
 }
 .hero-banner__bg {
   position: absolute;
@@ -773,7 +774,7 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.22;
+  opacity: 0.28;
   transition: transform 0.1s linear;
   will-change: transform;
 }
@@ -782,70 +783,98 @@ body {
   inset: 0;
   background: linear-gradient(
     to right,
-    rgba(27, 67, 50, 0.92) 0%,
-    rgba(27, 67, 50, 0.6) 60%,
-    rgba(27, 67, 50, 0.3) 100%
+    rgba(27, 67, 50, 0.96) 0%,
+    rgba(27, 67, 50, 0.8) 55%,
+    rgba(27, 67, 50, 0.4) 100%
   );
 }
-/* Decoración de círculos */
-.hero-banner__circle-1 {
-  position: absolute;
-  right: -20px;
-  top: -20px;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.04);
-  pointer-events: none;
-}
-.hero-banner__circle-2 {
-  position: absolute;
-  right: 30px;
-  bottom: -40px;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: rgba(216,243,220,0.06);
-  pointer-events: none;
-}
-.hero-banner__content {
+
+/* Combo Banner specific layout */
+.combo-banner__content {
   position: relative;
-  z-index: 1;
-  padding: 18px 20px;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  height: 100%;
+  box-sizing: border-box;
 }
-.hero-banner__chip {
-  display: inline-flex;
+.combo-banner__left {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #ffffff;
+  gap: 1px;
+}
+.combo-banner__tag {
+  font-size: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #D8F3DC;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: fit-content;
+  margin-bottom: 2px;
+}
+.combo-banner__title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.combo-banner__desc {
+  font-size: 10px;
+  color: rgba(216, 243, 220, 0.85);
+  line-height: 1.2;
+}
+.combo-banner__price-box {
+  display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(216, 243, 220, 0.15);
+  margin-top: 1px;
+}
+.combo-banner__price-promo {
+  font-size: 14px;
+  font-weight: 850;
   color: #D8F3DC;
-  font-size: 10px;
-  font-weight: 800;
-  padding: 5px 12px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 10px;
-  border: 1px solid rgba(216, 243, 220, 0.2);
-  /* Glassmorphism sutil */
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
-.hero-banner__title {
+.combo-banner__price-orig {
+  font-size: 11px;
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.55);
+}
+.combo-banner__right {
+  display: flex;
+  align-items: center;
+}
+.combo-banner__btn {
+  background: #D8F3DC;
+  color: #1B4332;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 12px;
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 11px;
   font-weight: 800;
-  color: #fff;
-  line-height: 1.25;
-  margin-bottom: 6px;
-  animation: fade-up 0.5s var(--ease-decel) 0.1s both;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s var(--ease-spring);
 }
-.hero-banner__subtitle {
-  font-size: 12px;
-  color: rgba(216, 243, 220, 0.72);
-  line-height: 1.5;
-  animation: fade-up 0.5s var(--ease-decel) 0.2s both;
+.combo-banner__btn:active {
+  transform: scale(0.95);
 }
+.combo-banner__btn:hover {
+  background: #ffffff;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
+}
+
 
 /* ─────────────────────────────────────────────────────────────
    CATEGORY CHIPS — Con glow y hover rico
@@ -876,7 +905,7 @@ body {
 .category-strip {
   display: flex;
   gap: 8px;
-  padding: 10px 24px 14px;
+  padding: 6px 24px 8px;
   overflow-x: auto;
   overflow-y: hidden;
   touch-action: pan-x;

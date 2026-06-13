@@ -235,6 +235,36 @@ export default function App() {
     if (navigator.vibrate) navigator.vibrate(8);
     showToast('Añadido al carrito');
   };
+
+  const addComboToCart = () => {
+    const burger = items.find(i => 
+      i.nombre.toLowerCase().includes('hamburguesa') || 
+      i.nombre.toLowerCase().includes('burger')
+    );
+    const drink = items.find(i => 
+      i.nombre.toLowerCase().includes('kombucha') || 
+      i.nombre.toLowerCase().includes('jugo') || 
+      i.nombre.toLowerCase().includes('limonada') ||
+      i.nombre.toLowerCase().includes('bebida')
+    );
+
+    if (!burger || !drink) {
+      showToast('Combo no disponible temporalmente', 'error');
+      return;
+    }
+
+    setCart(p => ({
+      ...p,
+      [burger.id]: (p[burger.id] || 0) + 1,
+      [drink.id]: (p[drink.id] || 0) + 1
+    }));
+    
+    setBadgePop(true);
+    setTimeout(() => setBadgePop(false), 450);
+
+    if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+    showToast('¡Combo Suna añadido! 🍔🥤');
+  };
   const setQty = (id, delta) => {
     setCart(p => {
       const next = (p[id]||0) + delta;
@@ -653,27 +683,31 @@ export default function App() {
                 <div style={{ padding:'12px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:10 }}>
                   {/* Banner hero solo en menu sin filtro */}
                   {tab === 'menu' && catId === 'all' && !query && (
-                    <div className="hero-banner">
+                    <div className="hero-banner combo-banner">
                       <div className="hero-banner__bg" />
                       <img
                         className="hero-banner__img"
-                        src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80"
-                        alt="Plato del dia"
+                        src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80"
+                        alt="Suna Combo del Día"
                       />
                       <div className="hero-banner__overlay" />
-                      <div className="hero-banner__circle-1" />
-                      <div className="hero-banner__circle-2" />
                       
-                      <div className="hero-banner__content">
-                        <span className="hero-banner__chip">
-                          100% Sostenible
-                        </span>
-                        <p className="hero-banner__title">
-                          Gastronomía<br/>Consciente 🥑
-                        </p>
-                        <p className="hero-banner__subtitle">
-                          Cultivado localmente, cocinado con arte peruano.
-                        </p>
+                      <div className="combo-banner__content">
+                        <div className="combo-banner__left">
+                          <span className="combo-banner__tag">🔥 Combo del Día</span>
+                          <h3 className="combo-banner__title">Suna Combo</h3>
+                          <p className="combo-banner__desc">Hamburguesa Suna + Bebida</p>
+                          <div className="combo-banner__price-box">
+                            <span className="combo-banner__price-promo">S/. 39.00</span>
+                            <span className="combo-banner__price-orig">S/. 46.00</span>
+                          </div>
+                        </div>
+                        <div className="combo-banner__right">
+                          <button onClick={addComboToCart} className="combo-banner__btn">
+                            <span className="combo-banner__btn-icon">🛒</span>
+                            <span className="combo-banner__btn-text">Pedir Combo</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
