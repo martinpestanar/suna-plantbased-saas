@@ -158,23 +158,29 @@ export default function DashboardCarta() {
   };
 
   const savePromoSettings = async (itemId, precio_oferta, etiqueta_promo) => {
+    console.log('savePromoSettings called with:', { itemId, precio_oferta, etiqueta_promo });
     if (!precio_oferta || parseFloat(precio_oferta) <= 0) {
+      console.log('Validation failed: invalid precio_oferta');
       showToast('Ingresa un precio de oferta válido', 'error');
       return;
     }
     setToggling(prev => ({ ...prev, [itemId]: true }));
     try {
-      const { error } = await supabase
+      console.log('Sending update to Supabase...');
+      const { data, error } = await supabase
         .from('items_menu')
         .update({
           en_oferta: true,
           precio_oferta: parseFloat(precio_oferta),
           etiqueta_promo: etiqueta_promo ? etiqueta_promo.trim() : null
         })
-        .eq('id', itemId);
+        .eq('id', itemId)
+        .select();
+      console.log('Supabase response:', { data, error });
       if (error) throw error;
       showToast('🔥 Oferta guardada exitosamente');
     } catch (err) {
+      console.error('Error saving promo settings:', err);
       showToast('Error al guardar oferta', 'error');
     } finally {
       setToggling(prev => { const n = { ...prev }; delete n[itemId]; return n; });
@@ -344,6 +350,7 @@ export default function DashboardCarta() {
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={() => savePromoSettings(item.id, item.precio_oferta, item.etiqueta_promo)}
                         style={{
                           background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 8,
