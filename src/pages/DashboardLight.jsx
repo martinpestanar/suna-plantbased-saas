@@ -55,6 +55,19 @@ const IcoMarketing = ({ active }) => (
   </svg>
 );
 
+const IcoMore = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? '#1B4332' : '#8A8070'} strokeWidth="2.5" strokeLinecap="round">
+    <circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/>
+  </svg>
+);
+
+const MOBILE_TABS = [
+  { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
+  { id: 'pedidos',    label: 'Pedidos',     Icon: IcoPedidos },
+  { id: 'carta',      label: 'Carta',       Icon: IcoCarta },
+];
+
 const TABS = [
   { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
   { id: 'pedidos',    label: 'Pedidos',     Icon: IcoPedidos },
@@ -158,6 +171,7 @@ export default function DashboardLight() {
   const activeTab = getTabFromRoute(route);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // Logout
   const handleLogout = async () => {
@@ -372,19 +386,23 @@ export default function DashboardLight() {
 
         {/* BOTTOM NAV */}
         <div style={{
-          flexShrink: 0, background: '#fff',
-          borderTop: '1px solid #EBE7DC',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.05)',
+          flexShrink: 0, background: 'transparent',
         }}>
           <div style={{
             display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-            padding: '8px 16px calc(8px + env(safe-area-inset-bottom))',
+            padding: '8px 12px',
+            margin: '8px 16px calc(6px + env(safe-area-inset-bottom))',
+            borderRadius: '24px',
+            background: 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(20px)',
+            border: '1.5px solid #EBE7DC',
+            boxShadow: '0 8px 32px rgba(138, 128, 112, 0.12)',
           }}>
-            {TABS.map(({ id, label, Icon }) => {
+            {MOBILE_TABS.map(({ id, label, Icon }) => {
               const active = activeTab === id;
               return (
                 <button key={id}
-                  onClick={() => switchTab(id)}
+                  onClick={() => { switchTab(id); setMoreOpen(false); }}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     flex: 1, cursor: 'pointer', padding: '4px 0',
@@ -409,11 +427,113 @@ export default function DashboardLight() {
                 </button>
               );
             })}
+
+            {/* Botón Más */}
+            <button
+              onClick={() => setMoreOpen(true)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                flex: 1, cursor: 'pointer', padding: '4px 0',
+                border: 'none', background: 'transparent',
+              }}
+            >
+              <div style={{
+                width: 56, height: 30, borderRadius: 999,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'transparent',
+                transition: 'all 200ms ease',
+              }}>
+                <IcoMore active={false}/>
+              </div>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                color: '#8A8070',
+                transition: 'color 200ms',
+              }}>
+                Más
+              </span>
+            </button>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 'calc(6px + env(safe-area-inset-bottom))', background: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 'calc(6px + env(safe-area-inset-bottom))', background: 'transparent' }}>
             <div style={{ width: 120, height: 4, borderRadius: 2, background: '#EBE7DC' }}/>
           </div>
         </div>
+
+        {/* ── BOTTOM SHEET MÁS (LIGHT THEME GRID) ── */}
+        {moreOpen && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 70,
+            background: 'rgba(45,42,38,0.4)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'flex-end',
+          }} onClick={e => { if (e.target === e.currentTarget) setMoreOpen(false); }}>
+            <div style={{
+              width: '100%', background: '#FCFBF9',
+              borderRadius: '28px 28px 0 0',
+              padding: '20px 20px 32px',
+              animation: 'sheet-up 350ms cubic-bezier(0.34,1.56,0.64,1) both',
+              boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14,
+              borderTop: '1px solid #EBE7DC',
+              boxShadow: '0 -8px 40px rgba(0,0,0,0.08)',
+            }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: '#EBE7DC', margin: '0 auto 6px' }}/>
+              <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, color: '#2D2A26', marginBottom: 6 }}>
+                Más Módulos
+              </p>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: 10,
+                marginTop: 6
+              }}>
+                {[
+                  { id: 'inventario', label: 'Inventario', icon: '📦', desc: 'Insumos' },
+                  { id: 'marketing',  label: 'Marketing',   icon: '🚀', desc: 'Copiloto' },
+                  { id: 'metricas',   label: 'Métricas',    icon: '📊', desc: 'Ventas' },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { switchTab(item.id); setMoreOpen(false); }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '16px 8px',
+                      background: '#fff',
+                      border: '1.5px solid #EBE7DC',
+                      borderRadius: 18,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      fontFamily: 'Plus Jakarta Sans, sans-serif',
+                      transition: 'all 150ms',
+                    }}
+                    onMouseDown={e => { e.currentTarget.style.background = '#F5F2EB'; }}
+                    onMouseUp={e => { e.currentTarget.style.background = '#fff'; }}
+                  >
+                    <span style={{ fontSize: 24 }}>{item.icon}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <p style={{ fontSize: 12, fontWeight: 800, color: '#2D2A26', margin: 0 }}>{item.label}</p>
+                      <p style={{ fontSize: 9, color: '#8A8070', margin: 0 }}>{item.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMoreOpen(false)}
+                style={{
+                  width: '100%', padding: '12px', background: 'none', border: '1px solid #EBE7DC',
+                  borderRadius: 14, color: '#8A8070', fontSize: 12, fontWeight: 700, cursor: 'pointer', marginTop: 6
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* RESTAURANT PICKER */}
         <RestaurantPickerLight

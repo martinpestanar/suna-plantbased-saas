@@ -49,6 +49,18 @@ const IcoMarketing = ({ active }) => (
     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
   </svg>
 );
+const IcoMore = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? 'var(--color-primary)' : 'var(--color-muted)'} strokeWidth="2.5" strokeLinecap="round">
+    <circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/>
+  </svg>
+);
+
+const MOBILE_TABS = [
+  { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
+  { id: 'pedidos',    label: 'Pedidos',     Icon: IcoPedidos },
+  { id: 'carta',      label: 'Carta',       Icon: IcoCarta },
+];
 
 const TABS = [
   { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
@@ -148,6 +160,7 @@ export default function Dashboard() {
 
   const activeTab = getTabFromRoute(route);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const prevTab = useRef('inicio');
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
@@ -341,12 +354,21 @@ export default function Dashboard() {
         </div>
 
         {/* ── BOTTOM NAV ── */}
-        <div className="shell-nav">
-          <div className="bottom-nav" style={{ gap: 0 }}>
-            {TABS.map(({ id, label, Icon }) => {
+        <div className="shell-nav" style={{ background: 'transparent' }}>
+          <div className="bottom-nav" style={{
+            gap: 0,
+            margin: '8px 16px calc(6px + env(safe-area-inset-bottom))',
+            borderRadius: '24px',
+            background: 'rgba(27, 45, 36, 0.9)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 8px 32px rgba(10, 20, 15, 0.5)',
+            padding: '8px 12px',
+          }}>
+            {MOBILE_TABS.map(({ id, label, Icon }) => {
               const active = activeTab === id;
               return (
-                <button key={id} className="nav-item" onClick={() => switchTab(id)}>
+                <button key={id} className="nav-item" onClick={() => { switchTab(id); setMoreOpen(false); }}>
                   <div
                     className={`nav-pill ${active ? 'active' : 'inactive'}`}
                     style={{ position: 'relative', color: active ? 'var(--color-primary)' : 'var(--color-muted)' }}
@@ -363,15 +385,97 @@ export default function Dashboard() {
                       }}/>
                     )}
                   </div>
-                  <span className={`nav-label ${active ? 'active' : 'inactive'}`}>{label}</span>
+                  <span className={`nav-label ${active ? 'active' : 'inactive'}`} style={{ color: active ? 'var(--color-accent)' : 'var(--color-muted)' }}>{label}</span>
                 </button>
               );
             })}
+            
+            {/* Botón Más */}
+            <button className="nav-item" onClick={() => setMoreOpen(true)}>
+              <div className="nav-pill inactive" style={{ color: 'var(--color-muted)' }}>
+                <IcoMore active={false}/>
+              </div>
+              <span className="nav-label inactive" style={{ color: 'var(--color-muted)' }}>Más</span>
+            </button>
           </div>
-          <div className="home-indicator">
-            <div className="home-indicator-bar"/>
+          <div className="home-indicator" style={{ background: 'transparent' }}>
+            <div className="home-indicator-bar" style={{ background: 'rgba(255,255,255,0.15)' }}/>
           </div>
         </div>
+
+        {/* ── BOTTOM SHEET MÁS ── */}
+        {moreOpen && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 70,
+            background: 'rgba(15,26,21,0.72)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'flex-end',
+          }} onClick={e => { if (e.target === e.currentTarget) setMoreOpen(false); }}>
+            <div style={{
+              width: '100%', background: 'var(--color-surface)',
+              borderRadius: '28px 28px 0 0',
+              padding: '20px 20px 32px',
+              animation: 'sheet-up 350ms cubic-bezier(0.34,1.56,0.64,1) both',
+              boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14
+            }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-surface-3)', margin: '0 auto 6px' }}/>
+              <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, color: 'var(--color-on-surface)', marginBottom: 6 }}>
+                Más Módulos
+              </p>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: 10,
+                marginTop: 6
+              }}>
+                {[
+                  { id: 'inventario', label: 'Inventario', icon: '📦', desc: 'Insumos' },
+                  { id: 'marketing',  label: 'Marketing',   icon: '🚀', desc: 'Copiloto' },
+                  { id: 'metricas',   label: 'Métricas',    icon: '📊', desc: 'Ventas' },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { switchTab(item.id); setMoreOpen(false); }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '16px 8px',
+                      background: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-surface-3)',
+                      borderRadius: 18,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      fontFamily: 'Plus Jakarta Sans, sans-serif',
+                      transition: 'all 150ms',
+                    }}
+                    onMouseDown={e => { e.currentTarget.style.background = 'var(--color-surface-3)'; }}
+                    onMouseUp={e => { e.currentTarget.style.background = 'var(--color-surface-2)'; }}
+                  >
+                    <span style={{ fontSize: 24 }}>{item.icon}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>{item.label}</p>
+                      <p style={{ fontSize: 9, color: 'var(--color-muted)', margin: 0 }}>{item.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMoreOpen(false)}
+                style={{
+                  width: '100%', padding: '12px', background: 'none', border: '1px solid var(--color-surface-3)',
+                  borderRadius: 14, color: 'var(--color-muted)', fontSize: 12, fontWeight: 700, cursor: 'pointer', marginTop: 6
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── RESTAURANT PICKER SHEET ── */}
         <RestaurantPicker
