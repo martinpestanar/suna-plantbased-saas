@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
+import { useTheme } from './router.jsx';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 /* ─── Iconos SVG inline ligeros ─── */
 const Icon = {
@@ -69,6 +72,7 @@ const FALLBACK_ITEMS = [
 
 /* ─── COMPONENTE PRINCIPAL ─── */
 export default function App() {
+  const { theme } = useTheme();
   // ── Estado general ──
   const [tab, setTab]         = useState('menu');  // 'menu' | 'buscar' | 'carrito'
   const [catId, setCatId]     = useState('all');
@@ -93,6 +97,14 @@ export default function App() {
   const [payMethodCheckout, setPayMethodCheckout] = useState('yape_plin'); // 'yape_plin' | 'efectivo'
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult]         = useState(null);  // { orden_id, total, metodo_pago }
+  const [zones, setZones]           = useState([]);
+  const [selectedZoneId, setSelectedZoneId] = useState('');
+  const [address, setAddress]       = useState('');
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [customerCoords, setCustomerCoords] = useState(null);
+  const [calculatedDistanceKm, setCalculatedDistanceKm] = useState(null);
+  const searchTimeoutRef = useRef(null);
 
   // ── Pantalla de éxito ──
   const [payMode, setPayMode] = useState('yape');  // 'yape' | 'plin' | 'banco'
@@ -123,6 +135,107 @@ export default function App() {
   // Drag-to-close Bottom Sheet
   const touchStartY = useRef(0);
 
+  // Leaflet map refs for checkout
+  const checkoutMapContainerRef = useRef(null);
+  const checkoutMapRef = useRef(null);
+  const restaurantMarkerRef = useRef(null);
+  const customerMarkerRef = useRef(null);
+  const routeLineRef = useRef(null);
+
+  useEffect(() => {
+    if (!sheetOpen || delivery !== 'delivery' || restaurant.delivery_tipo_calculo !== 'distancia' || !checkoutMapContainerRef.current) {
+      if (checkoutMapRef.current) {
+        checkoutMapRef.current.remove();
+        checkoutMapRef.current = null;
+        restaurantMarkerRef.current = null;
+        customerMarkerRef.current = null;
+        routeLineRef.current = null;
+      }
+      return;
+    }
+
+    // Fix marker icons
+    delete L.Icon.Default.prototype._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).href,
+      iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
+      shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href,
+    });
+
+    const restLat = parseFloat(restaurant.latitud || -12.046374);
+    const restLng = parseFloat(restaurant.longitud || -77.042793);
+
+    if (!checkoutMapRef.current) {
+      const map = L.map(checkoutMapContainerRef.current, { zoomControl: false }).setView([restLat, restLng], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      // Add Zoom control at bottom right instead of top left
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      const restIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      });
+
+      const restMarker = L.marker([restLat, restLng], { icon: restIcon }).addTo(map).bindPopup(`<b>${restaurant.nombre}</b><br/>Nuestra Cocina 🌱`);
+      restaurantMarkerRef.current = restMarker;
+
+      checkoutMapRef.current = map;
+    }
+
+    const mapInstance = checkoutMapRef.current;
+    if (customerCoords?.lat && customerCoords?.lng) {
+      const custLat = parseFloat(customerCoords.lat);
+      const custLng = parseFloat(customerCoords.lng);
+
+      if (customerMarkerRef.current) {
+        customerMarkerRef.current.setLatLng([custLat, custLng]);
+      } else {
+        const custIcon = L.icon({
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowSize: [41, 41]
+        });
+        const custMarker = L.marker([custLat, custLng], { icon: custIcon }).addTo(mapInstance).bindPopup('<b>Tu Ubicación</b> 📍');
+        customerMarkerRef.current = custMarker;
+      }
+
+      if (routeLineRef.current) {
+        routeLineRef.current.setLatLngs([[restLat, restLng], [custLat, custLng]]);
+      } else {
+        const line = L.polyline([[restLat, restLng], [custLat, custLng]], {
+          color: '#2d6a4f',
+          weight: 3,
+          dashArray: '5, 8',
+          opacity: 0.8
+        }).addTo(mapInstance);
+        routeLineRef.current = line;
+      }
+
+      const bounds = L.latLngBounds([[restLat, restLng], [custLat, custLng]]);
+      mapInstance.fitBounds(bounds, { padding: [50, 50] });
+    } else {
+      if (customerMarkerRef.current) {
+        mapInstance.removeLayer(customerMarkerRef.current);
+        customerMarkerRef.current = null;
+      }
+      if (routeLineRef.current) {
+        mapInstance.removeLayer(routeLineRef.current);
+        routeLineRef.current = null;
+      }
+      mapInstance.setView([restLat, restLng], 14);
+    }
+  }, [sheetOpen, delivery, customerCoords, restaurant]);
+
   /* ──────────────────────────────────── Reloj nativo ── */
   useEffect(() => {
     const tick = () => {
@@ -140,13 +253,17 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [{ data: res }, { data: catData }, { data: itemData }, { data: comboData }] = await Promise.all([
-          supabase.from('restaurantes').select('*').limit(1),
+        const { data: res } = await supabase.from('restaurantes').select('*').limit(1);
+        const rest = res?.[0] || FALLBACK_RESTAURANT;
+        setRestaurant(rest);
+
+        const [{ data: catData }, { data: itemData }, { data: comboData }, { data: zonesData }] = await Promise.all([
           supabase.from('categorias_menu').select('*'),
           supabase.from('items_menu').select('*').eq('disponible', true),
           supabase.from('combo_del_dia').select('*').eq('activo', true).order('created_at', { ascending: false }).limit(1),
+          supabase.from('zonas_delivery').select('*').eq('restaurante_id', rest.id).order('nombre'),
         ]);
-        if (res?.[0])   setRestaurant(res[0]);
+
         if (catData?.length) { setCats(catData); setCatId('all'); }
         if (itemData?.length) {
           setItems(itemData.map(i => ({
@@ -158,8 +275,11 @@ export default function App() {
         if (comboData?.[0]) {
           setActiveCombo(comboData[0]);
         }
+        if (zonesData?.length) {
+          setZones(zonesData);
+        }
       } catch (e) {
-        console.error('DB offline, usando datos demo', e);
+        console.error('DB offline o error, usando datos demo/fallbacks', e);
         setCatId('all');
       } finally {
         setLoading(false);
@@ -266,6 +386,98 @@ export default function App() {
     const price = it.en_oferta && it.precio_oferta ? it.precio_oferta : it.precio;
     return s + (price * q);
   }, 0);
+
+  const selectedZone = zones.find(z => z.id === selectedZoneId);
+  
+  const calcularDistancia = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const getDeliveryFee = () => {
+    if (delivery !== 'delivery') return 0;
+    if (restaurant.delivery_tipo_calculo === 'distancia') {
+      if (calculatedDistanceKm === null) return 0;
+      const freeLimit = restaurant.delivery_envio_gratis_desde_global;
+      if (freeLimit !== null && freeLimit !== undefined && totalPrice >= parseFloat(freeLimit)) {
+        return 0;
+      }
+      const baseFee = parseFloat(restaurant.delivery_tarifa_base || 5);
+      const baseKm = parseFloat(restaurant.delivery_km_base || 3);
+      const extraCost = parseFloat(restaurant.delivery_costo_km_adicional || 1.5);
+      return calculatedDistanceKm <= baseKm 
+        ? baseFee 
+        : baseFee + ((calculatedDistanceKm - baseKm) * extraCost);
+    } else {
+      if (!selectedZone) return 0;
+      return selectedZone.envio_gratis_desde !== null && selectedZone.envio_gratis_desde !== undefined && totalPrice >= parseFloat(selectedZone.envio_gratis_desde)
+        ? 0 
+        : parseFloat(selectedZone.costo_envio);
+    }
+  };
+
+  const deliveryFee = getDeliveryFee();
+
+  const getMinOrder = () => {
+    if (delivery !== 'delivery') return 0;
+    return restaurant.delivery_tipo_calculo === 'distancia'
+      ? parseFloat(restaurant.delivery_pedido_minimo_global || 30)
+      : (selectedZone ? parseFloat(selectedZone.pedido_minimo) : 0);
+  };
+
+  const minOrder = getMinOrder();
+  const meetsMinOrder = totalPrice >= minOrder;
+  const meetsCoverage = delivery !== 'delivery' || restaurant.delivery_tipo_calculo !== 'distancia' || calculatedDistanceKm === null || calculatedDistanceKm <= parseFloat(restaurant.delivery_cobertura_maxima_km || 10);
+
+  const searchAddress = async (queryText) => {
+    if (queryText.trim().length < 4) {
+      setAddressSuggestions([]);
+      return;
+    }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&countrycodes=pe&limit=5`);
+      const data = await res.json();
+      setAddressSuggestions(data || []);
+      setShowSuggestions(true);
+    } catch (e) {
+      console.error('Error Nominatim:', e);
+    }
+  };
+
+  const handleAddressChange = (val) => {
+    setAddress(val);
+    setCustomerCoords(null);
+    setCalculatedDistanceKm(null);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (restaurant.delivery_tipo_calculo === 'distancia') {
+      searchTimeoutRef.current = setTimeout(() => {
+        searchAddress(val);
+      }, 500);
+    }
+  };
+
+  const selectSuggestion = (sug) => {
+    setAddress(sug.display_name);
+    setCustomerCoords({
+      lat: parseFloat(sug.lat),
+      lng: parseFloat(sug.lon)
+    });
+    setShowSuggestions(false);
+    const dist = calcularDistancia(
+      parseFloat(restaurant.latitud || -12.046374),
+      parseFloat(restaurant.longitud || -77.042793),
+      parseFloat(sug.lat),
+      parseFloat(sug.lon)
+    );
+    setCalculatedDistanceKm(dist);
+    if (navigator.vibrate) navigator.vibrate(5);
+  };
 
   const addItem = (id) => {
     setCart(p => ({ ...p, [id]: (p[id]||0)+1 }));
@@ -374,6 +586,19 @@ export default function App() {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) { showToast('Ingresa nombre y celular', 'error'); return; }
     if (!totalQty) { showToast('El carrito está vacío', 'error'); return; }
+    if (delivery === 'delivery') {
+      if (restaurant.delivery_tipo_calculo === 'distancia') {
+        if (!address.trim() || !customerCoords || !meetsMinOrder || !meetsCoverage) {
+          showToast('Verifica tu dirección, cobertura y pedido mínimo', 'error');
+          return;
+        }
+      } else {
+        if (!selectedZoneId || !address.trim() || !meetsMinOrder) {
+          showToast('Completa los datos de entrega y cumple el pedido mínimo', 'error');
+          return;
+        }
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -384,6 +609,9 @@ export default function App() {
         p_tipo_entrega: delivery,
         p_metodo_pago: payMethodCheckout,
         p_items: Object.entries(cart).map(([item_id, cantidad]) => ({ item_id, cantidad })),
+        p_direccion: delivery === 'delivery' ? address.trim() : null,
+        p_zona_id: delivery === 'delivery' && selectedZoneId && restaurant.delivery_tipo_calculo === 'zonas' ? selectedZoneId : null,
+        p_costo_envio: deliveryFee,
       });
       if (error) throw error;
       if (data?.success) {
@@ -395,7 +623,11 @@ export default function App() {
     } catch (err) {
       console.error('Error al procesar orden en Supabase:', err);
       // Modo demo / fallback
-      setResult({ orden_id: 'DEMO-'+Math.random().toString(36).substr(2,6).toUpperCase(), total: totalPrice, metodo_pago: payMethodCheckout });
+      setResult({ 
+        orden_id: 'DEMO-'+Math.random().toString(36).substr(2,6).toUpperCase(), 
+        total: totalPrice + deliveryFee, 
+        metodo_pago: payMethodCheckout 
+      });
       setSheetOpen(false);
       showToast('Pedido simulado en modo demo', 'info');
     } finally {
@@ -411,8 +643,19 @@ export default function App() {
       const price = it && it.en_oferta && it.precio_oferta ? it.precio_oferta : (it ? it.precio : 0);
       return `• ${q}x ${it?.nombre} (S/. ${(price*q).toFixed(2)})`;
     }).join('\n');
-    const msg = `🌱 *SUNA GOURMET*\n─────────────────\n*Pedido #${result.orden_id.slice(-6).toUpperCase()}*\nCliente: ${name} | ${phone}\nEntrega: ${delivery === 'delivery' ? '🛵 Delivery' : '🛍️ Recojo'}\n─────────────────\n${lines}\n─────────────────\n*TOTAL: S/. ${parseFloat(result.total).toFixed(2)}*\nMétodo: ${result.metodo_pago === 'efectivo' ? '💵 Efectivo contraentrega' : (payMode === 'banco' ? '🏦 Transferencia' : '📱 '+payMode.toUpperCase())}`;
-    return `https://wa.me/51987654321?text=${encodeURIComponent(msg)}`;
+
+    let deliveryDetails = '';
+    if (delivery === 'delivery') {
+      if (restaurant.delivery_tipo_calculo === 'distancia') {
+        const coordsLink = customerCoords ? `https://www.google.com/maps?q=${customerCoords.lat},${customerCoords.lng}` : '';
+        deliveryDetails = `\nDirección: ${address}\nDistancia: ${calculatedDistanceKm?.toFixed(1)} km\nEnvío: ${deliveryFee === 0 ? 'Gratis' : `S/. ${deliveryFee.toFixed(2)}`}\nMapa: ${coordsLink}\n─────────────────`;
+      } else {
+        deliveryDetails = `\nDistrito: ${selectedZone?.nombre || 'No especificado'}\nDirección: ${address}\nEnvío: ${deliveryFee === 0 ? 'Gratis' : `S/. ${deliveryFee.toFixed(2)}`}\n─────────────────`;
+      }
+    }
+
+    const msg = `🌱 *${restaurant.nombre.toUpperCase()}*\n─────────────────\n*Pedido #${result.orden_id.slice(-6).toUpperCase()}*\nCliente: ${name} | ${phone}\nEntrega: ${delivery === 'delivery' ? '🛵 Delivery' : '🛍️ Recojo'}${deliveryDetails}\n${lines}\n─────────────────\n*TOTAL: S/. ${parseFloat(result.total).toFixed(2)}*\nMétodo: ${result.metodo_pago === 'efectivo' ? '💵 Efectivo contraentrega' : (payMode === 'banco' ? '🏦 Transferencia' : '📱 '+payMode.toUpperCase())}`;
+    return `https://wa.me/${restaurant.telefono ? restaurant.telefono.replace(/[^0-9]/g, '') : '51987654321'}?text=${encodeURIComponent(msg)}`;
   };
 
   const copyText = (text, label) => {
@@ -421,7 +664,17 @@ export default function App() {
     if (navigator.vibrate) navigator.vibrate([12,12]);
   };
 
-  const resetAll = () => { setCart({}); setResult(null); setName(''); setPhone(''); setTab('menu'); };
+  const resetAll = () => {
+    setCart({});
+    setResult(null);
+    setName('');
+    setPhone('');
+    setSelectedZoneId('');
+    setAddress('');
+    setCustomerCoords(null);
+    setCalculatedDistanceKm(null);
+    setTab('menu');
+  };
 
   // Bottom Sheet drag handlers
   const handleTouchStart = (e) => {
@@ -439,7 +692,7 @@ export default function App() {
      RENDER
      ════════════════════════════════════════════════════ */
   return (
-    <div className={isDesktop ? 'desktop-root' : 'mobile-root'}>
+    <div className={`${isDesktop ? 'desktop-root' : 'mobile-root'} ${theme === 'light' ? 'light' : ''}`}>
       {/* ── ORBES ANIMADOS (solo desktop) ── */}
       {isDesktop && <span className="desktop-orb-3" />}
 
@@ -1076,9 +1329,23 @@ export default function App() {
                     </div>
 
                     {/* Total preview */}
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 16px', background:'var(--color-surface-2)', borderRadius:16, marginBottom:20, border:'1.5px solid var(--color-surface-3)' }}>
-                      <span style={{ fontSize:13, fontWeight:700, color:'var(--color-muted)', textTransform:'uppercase', letterSpacing:'0.04em' }}>Subtotal</span>
-                      <span style={{ fontFamily:'var(--font-display)', fontSize:22, fontWeight:900, color:'var(--color-primary)' }}>S/. {totalPrice.toFixed(2)}</span>
+                    <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'14px 16px', background:'var(--color-surface-2)', borderRadius:16, marginBottom:20, border:'1.5px solid var(--color-surface-3)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize:12, fontWeight:700, color:'var(--color-muted)', textTransform:'uppercase', letterSpacing:'0.04em' }}>Subtotal</span>
+                        <span style={{ fontFamily:'var(--font-display)', fontSize:16, fontWeight:800, color:'var(--color-on-surface)' }}>S/. {totalPrice.toFixed(2)}</span>
+                      </div>
+                      {delivery === 'delivery' && selectedZone && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-surface-3)', paddingTop: 8, marginTop: 4 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:'var(--color-muted)', textTransform:'uppercase', letterSpacing:'0.04em' }}>Costo Envío</span>
+                          <span style={{ fontFamily:'var(--font-display)', fontSize:16, fontWeight:800, color: deliveryFee === 0 ? '#40916C' : 'var(--color-on-surface)' }}>
+                            {deliveryFee === 0 ? 'Gratis' : `S/. ${deliveryFee.toFixed(2)}`}
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid var(--color-surface-3)', paddingTop: 10, marginTop: 6 }}>
+                        <span style={{ fontSize:13, fontWeight:800, color:'var(--color-primary)', textTransform:'uppercase', letterSpacing:'0.04em' }}>Total</span>
+                        <span style={{ fontFamily:'var(--font-display)', fontSize:22, fontWeight:900, color:'var(--color-primary)' }}>S/. ${(totalPrice + deliveryFee).toFixed(2)}</span>
+                      </div>
                     </div>
 
                     {/* Formulario */}
@@ -1098,6 +1365,183 @@ export default function App() {
                           <button type="button" onClick={() => setDelivery('delivery')} className={`seg-btn ${delivery==='delivery'?'active':'inactive'}`}>🛵 Delivery</button>
                         </div>
                       </div>
+
+                      {delivery === 'delivery' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px', background: 'var(--color-surface-2)', borderRadius: 18, border: '1px solid var(--color-surface-3)', marginTop: 4 }}>
+                          {restaurant.delivery_tipo_calculo === 'distancia' ? (
+                            /* Autocomplete Nominatim */
+                            <div style={{ position: 'relative' }}>
+                              <label style={{ display:'block', fontSize:11, fontWeight:800, color:'var(--color-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Dirección de Entrega (GPS)</label>
+                              <input
+                                type="text"
+                                required={delivery === 'delivery'}
+                                placeholder="Escribe tu calle y número (ej. Larcomar, Miraflores)"
+                                value={address}
+                                onChange={e => handleAddressChange(e.target.value)}
+                                className="input-field"
+                              />
+                              
+                              {showSuggestions && addressSuggestions.length > 0 && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '100%', left: 0, right: 0,
+                                  background: 'var(--color-surface)',
+                                  border: '1.5px solid var(--color-surface-3)',
+                                  borderRadius: 14,
+                                  maxHeight: 180,
+                                  overflowY: 'auto',
+                                  zIndex: 99,
+                                  marginTop: 4,
+                                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                                }}>
+                                  {addressSuggestions.map((sug, idx) => (
+                                    <div
+                                      key={idx}
+                                      onClick={() => selectSuggestion(sug)}
+                                      style={{
+                                        padding: '10px 14px',
+                                        fontSize: 12,
+                                        color: 'var(--color-on-surface)',
+                                        borderBottom: idx < addressSuggestions.length - 1 ? '1px solid var(--color-surface-3)' : 'none',
+                                        cursor: 'pointer',
+                                        lineHeight: 1.4,
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                      }}
+                                    >
+                                      📍 {sug.display_name}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {/* Mapa visual de checkout */}
+                              <div 
+                                ref={checkoutMapContainerRef} 
+                                style={{ 
+                                  height: '180px', 
+                                  width: '100%',
+                                  borderRadius: '14px', 
+                                  border: '1.5px solid var(--color-surface-3)', 
+                                  overflow: 'hidden',
+                                  marginTop: 12,
+                                  zIndex: 1
+                                }} 
+                              />
+                            </div>
+                          ) : (
+                            /* Distritos (Fase 1) */
+                            <>
+                              <div>
+                                <label style={{ display:'block', fontSize:11, fontWeight:800, color:'var(--color-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Distrito / Zona de Envío</label>
+                                <select
+                                  required
+                                  value={selectedZoneId}
+                                  onChange={e => {
+                                    setSelectedZoneId(e.target.value);
+                                    if (navigator.vibrate) navigator.vibrate(5);
+                                  }}
+                                  className="input-field"
+                                  style={{ width: '100%', appearance: 'none', background: 'var(--color-surface) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%238A8070\' stroke-width=\'2.5\' stroke-linecap=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E") no-repeat right 14px center', backgroundSize: '16px' }}
+                                >
+                                  <option value="">-- Seleccionar distrito --</option>
+                                  {zones.map(z => (
+                                    <option key={z.id} value={z.id}>
+                                      {z.nombre} (Envío S/. {parseFloat(z.costo_envio).toFixed(2)})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={{ display:'block', fontSize:11, fontWeight:800, color:'var(--color-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Dirección Completa</label>
+                                <input
+                                  type="text"
+                                  required={delivery === 'delivery'}
+                                  placeholder="Ej. Calle Las Lilas 450, Dpto 302"
+                                  value={address}
+                                  onChange={e => setAddress(e.target.value)}
+                                  className="input-field"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* Info de cálculo de delivery */}
+                          {restaurant.delivery_tipo_calculo === 'distancia' ? (
+                            calculatedDistanceKm !== null && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                  <span style={{ color: 'var(--color-muted)' }}>Distancia Calculada:</span>
+                                  <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>
+                                    {calculatedDistanceKm.toFixed(1)} km
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                  <span style={{ color: 'var(--color-muted)' }}>Pedido Mínimo:</span>
+                                  <span style={{ fontWeight: 700, color: meetsMinOrder ? 'var(--color-primary)' : 'var(--color-danger)' }}>
+                                    S/. {minOrder.toFixed(2)}
+                                  </span>
+                                </div>
+                                {restaurant.delivery_envio_gratis_desde_global && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                    <span style={{ color: 'var(--color-muted)' }}>Envío Gratis desde:</span>
+                                    <span style={{ fontWeight: 700, color: '#40916C' }}>
+                                      S/. {parseFloat(restaurant.delivery_envio_gratis_desde_global).toFixed(2)}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {deliveryFee === 0 && totalPrice >= parseFloat(restaurant.delivery_envio_gratis_desde_global || 100) && (
+                                  <div style={{ background: '#EBF5EF', color: '#1B4332', fontSize: 11, fontWeight: 700, padding: '8px 12px', borderRadius: 10, marginTop: 6 }}>
+                                    🎉 ¡Tu pedido califica para envío gratuito!
+                                  </div>
+                                )}
+                                {!meetsMinOrder && (
+                                  <div style={{ background: '#FEF2F2', color: '#991B1B', fontSize: 11, fontWeight: 700, padding: '8px 12px', borderRadius: 10, marginTop: 6 }}>
+                                    ⚠️ Faltan S/. {(minOrder - totalPrice).toFixed(2)} para llegar al pedido mínimo.
+                                  </div>
+                                )}
+                                {!meetsCoverage && (
+                                  <div style={{ background: '#FEF2F2', color: '#991B1B', fontSize: 11, fontWeight: 700, padding: '8px 12px', borderRadius: 10, marginTop: 6 }}>
+                                    🚫 Lo sentimos, estás fuera de cobertura ({restaurant.delivery_cobertura_maxima_km} km max).
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          ) : (
+                            selectedZone && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                  <span style={{ color: 'var(--color-muted)' }}>Pedido Mínimo:</span>
+                                  <span style={{ fontWeight: 700, color: meetsMinOrder ? 'var(--color-primary)' : 'var(--color-danger)' }}>
+                                    S/. {parseFloat(selectedZone.pedido_minimo).toFixed(2)}
+                                  </span>
+                                </div>
+                                {selectedZone.envio_gratis_desde && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                    <span style={{ color: 'var(--color-muted)' }}>Envío Gratis desde:</span>
+                                    <span style={{ fontWeight: 700, color: '#40916C' }}>
+                                      S/. {parseFloat(selectedZone.envio_gratis_desde).toFixed(2)}
+                                    </span>
+                                  </div>
+                                )}
+                                {deliveryFee === 0 && selectedZone.envio_gratis_desde && totalPrice >= selectedZone.envio_gratis_desde && (
+                                  <div style={{ background: '#EBF5EF', color: '#1B4332', fontSize: 11, fontWeight: 700, padding: '8px 12px', borderRadius: 10, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    🎉 ¡Tu pedido califica para envío gratuito!
+                                  </div>
+                                )}
+                                {!meetsMinOrder && (
+                                  <div style={{ background: '#FEF2F2', color: '#991B1B', fontSize: 11, fontWeight: 700, padding: '8px 12px', borderRadius: 10, marginTop: 6 }}>
+                                    ⚠️ Faltan S/. {(parseFloat(selectedZone.pedido_minimo) - totalPrice).toFixed(2)} para llegar al pedido mínimo.
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
                       <div>
                         <label style={{ display:'block', fontSize:11, fontWeight:800, color:'var(--color-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Método de pago</label>
                         <div className="segmented">
@@ -1106,13 +1550,21 @@ export default function App() {
                         </div>
                       </div>
                       <div style={{ marginTop:8 }}>
-                        <button type="submit" className="btn-primary" disabled={submitting}>
+                        <button
+                          type="submit"
+                          className="btn-primary"
+                          disabled={submitting || (delivery === 'delivery' && (
+                            restaurant.delivery_tipo_calculo === 'distancia'
+                              ? (!customerCoords || !meetsMinOrder || !meetsCoverage)
+                              : (!selectedZoneId || !address.trim() || !meetsMinOrder)
+                          ))}
+                        >
                           {submitting ? (
                             <>
                               <div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
                               Procesando...
                             </>
-                          ) : `Confirmar pedido · S/. ${totalPrice.toFixed(2)}`}
+                          ) : `Confirmar pedido · S/. ${(totalPrice + deliveryFee).toFixed(2)}`}
                         </button>
                       </div>
                     </form>

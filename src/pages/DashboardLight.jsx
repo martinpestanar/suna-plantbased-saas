@@ -8,7 +8,11 @@ import DashboardCarta    from './dashboard/DashboardCarta.jsx';
 import DashboardMetricas from './dashboard/DashboardMetricas.jsx';
 import DashboardInventario from './dashboard/DashboardInventario.jsx';
 import DashboardMarketing from './dashboard/DashboardMarketing.jsx';
+import DashboardDelivery from './dashboard/DashboardDelivery.jsx';
+import DashboardOrdenes from './dashboard/DashboardOrdenes.jsx';
 import DesktopSidebar from '../components/DesktopSidebar.jsx';
+import DashboardFinanzas from './dashboard/DashboardFinanzas.jsx';
+import DashboardClientes from './dashboard/DashboardClientes.jsx';
 
 
 /* ── Iconos Bottom Nav (reutilizados, colores adaptados vía prop) ── */
@@ -55,6 +59,27 @@ const IcoMarketing = ({ active }) => (
   </svg>
 );
 
+const IcoDelivery = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? '#1B4332' : '#8A8070'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="1" y="3" width="15" height="13" rx="2" ry="2" />
+    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+    <circle cx="5.5" cy="18.5" r="2.5" />
+    <circle cx="18.5" cy="18.5" r="2.5" />
+  </svg>
+);
+
+const IcoOrdenes = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? '#1B4332' : '#8A8070'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
+  </svg>
+);
+
 const IcoMore = ({ active }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
     stroke={active ? '#1B4332' : '#8A8070'} strokeWidth="2.5" strokeLinecap="round">
@@ -62,19 +87,34 @@ const IcoMore = ({ active }) => (
   </svg>
 );
 
+const IcoClientes = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? '#1B4332' : '#8A8070'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
 const MOBILE_TABS = [
   { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
+  { id: 'ordenes',    label: 'Órdenes',     Icon: IcoOrdenes },
   { id: 'pedidos',    label: 'Pedidos',     Icon: IcoPedidos },
   { id: 'carta',      label: 'Carta',       Icon: IcoCarta },
 ];
 
 const TABS = [
-  { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
-  { id: 'pedidos',    label: 'Pedidos',     Icon: IcoPedidos },
-  { id: 'carta',      label: 'Carta',       Icon: IcoCarta },
-  { id: 'inventario', label: 'Inventario',  Icon: IcoInventario },
-  { id: 'marketing',  label: 'Marketing',   Icon: IcoMarketing },
-  { id: 'metricas',   label: 'Métricas',    Icon: IcoMetricas },
+  { id: 'inicio',     label: 'Inicio',         Icon: IcoHome },
+  { id: 'ordenes',    label: 'Órdenes Live',    Icon: IcoOrdenes },
+  { id: 'pedidos',    label: 'Pedidos',         Icon: IcoPedidos },
+  { id: 'carta',      label: 'Carta',           Icon: IcoCarta },
+  { id: 'inventario', label: 'Inventario',      Icon: IcoInventario },
+  { id: 'marketing',  label: 'Marketing',       Icon: IcoMarketing },
+  { id: 'delivery',   label: 'Delivery',        Icon: IcoDelivery },
+  { id: 'clientes',   label: 'Clientes',        Icon: IcoClientes },
+  { id: 'metricas',   label: 'Métricas',        Icon: IcoMetricas },
+  { id: 'finanzas',   label: 'Finanzas',        Icon: IcoHome },
 ];
 
 /* ── Selector de Restaurante ── */
@@ -160,11 +200,14 @@ export default function DashboardLight() {
   const { route, navigate } = useRouter();
   
   const getTabFromRoute = (r) => {
+    if (r.startsWith('/dashboard/ordenes'))    return 'ordenes';
     if (r.startsWith('/dashboard/pedidos'))    return 'pedidos';
     if (r.startsWith('/dashboard/carta'))      return 'carta';
     if (r.startsWith('/dashboard/inventario')) return 'inventario';
     if (r.startsWith('/dashboard/marketing'))  return 'marketing';
+    if (r.startsWith('/dashboard/delivery'))   return 'delivery';
     if (r.startsWith('/dashboard/metricas'))   return 'metricas';
+    if (r.startsWith('/dashboard/finanzas'))   return 'finanzas';
     return 'inicio';
   };
 
@@ -202,13 +245,17 @@ export default function DashboardLight() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'inicio':   return <DashboardHome onNavigate={switchTab}/>;
-      case 'pedidos':  return <Admin key={activeRestaurant?.id}/>;
-      case 'carta':    return <DashboardCarta/>;
+      case 'inicio':     return <DashboardHome onNavigate={switchTab}/>;
+      case 'ordenes':    return <DashboardOrdenes key={activeRestaurant?.id}/>;
+      case 'pedidos':    return <Admin key={activeRestaurant?.id}/>;
+      case 'carta':      return <DashboardCarta/>;
       case 'inventario': return <DashboardInventario/>;
       case 'marketing':  return <DashboardMarketing/>;
-      case 'metricas': return <DashboardMetricas/>;
-      default:         return <DashboardHome onNavigate={switchTab}/>;
+      case 'delivery':   return <DashboardDelivery/>;
+      case 'clientes':   return <DashboardClientes/>;
+      case 'metricas':   return <DashboardMetricas/>;
+      case 'finanzas':   return <DashboardFinanzas/>;
+      default:           return <DashboardHome onNavigate={switchTab}/>;
     }
   };
 
@@ -488,7 +535,9 @@ export default function DashboardLight() {
               }}>
                 {[
                   { id: 'inventario', label: 'Inventario', icon: '📦', desc: 'Insumos' },
+                  { id: 'finanzas',   label: 'Finanzas',    icon: '💵', desc: 'Caja' },
                   { id: 'marketing',  label: 'Marketing',   icon: '🚀', desc: 'Copiloto' },
+                  { id: 'delivery',   label: 'Delivery',    icon: '🛵', desc: 'Tarifas' },
                   { id: 'metricas',   label: 'Métricas',    icon: '📊', desc: 'Ventas' },
                 ].map(item => (
                   <button

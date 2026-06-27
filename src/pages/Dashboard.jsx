@@ -7,6 +7,9 @@ import DashboardCarta   from './dashboard/DashboardCarta.jsx';
 import DashboardMetricas from './dashboard/DashboardMetricas.jsx';
 import DashboardInventario from './dashboard/DashboardInventario.jsx';
 import DashboardMarketing from './dashboard/DashboardMarketing.jsx';
+import DashboardDelivery from './dashboard/DashboardDelivery.jsx';
+import DashboardFinanzas from './dashboard/DashboardFinanzas.jsx';
+import DashboardClientes from './dashboard/DashboardClientes.jsx';
 
 /* ── Iconos Bottom Nav ── */
 const IcoHome = ({ active }) => (
@@ -49,10 +52,37 @@ const IcoMarketing = ({ active }) => (
     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
   </svg>
 );
+const IcoFinanzas = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? 'var(--color-primary)' : 'var(--color-muted)'} strokeWidth="2" strokeLinecap="round">
+    <line x1="12" y1="1" x2="12" y2="23"/>
+    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+  </svg>
+);
+const IcoDelivery = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? 'var(--color-primary)' : 'var(--color-muted)'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="1" y="3" width="15" height="13" rx="2" ry="2" />
+    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+    <circle cx="5.5" cy="18.5" r="2.5" />
+    <circle cx="18.5" cy="18.5" r="2.5" />
+  </svg>
+);
+
 const IcoMore = ({ active }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
     stroke={active ? 'var(--color-primary)' : 'var(--color-muted)'} strokeWidth="2.5" strokeLinecap="round">
     <circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/>
+  </svg>
+);
+
+const IcoClientes = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? 'var(--color-primary)' : 'var(--color-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
   </svg>
 );
 
@@ -68,7 +98,10 @@ const TABS = [
   { id: 'carta',      label: 'Carta',       Icon: IcoCarta },
   { id: 'inventario', label: 'Inventario',  Icon: IcoInventario },
   { id: 'marketing',  label: 'Marketing',   Icon: IcoMarketing },
+  { id: 'delivery',   label: 'Delivery',    Icon: IcoDelivery },
+  { id: 'clientes',   label: 'Clientes',    Icon: IcoClientes },
   { id: 'metricas',   label: 'Métricas',    Icon: IcoMetricas },
+  { id: 'finanzas',   label: 'Finanzas',    Icon: IcoFinanzas },
 ];
 
 /* ── Selector de Restaurante (Multi-Tenant) ── */
@@ -154,7 +187,9 @@ export default function Dashboard() {
     if (r.startsWith('/dashboard/carta'))      return 'carta';
     if (r.startsWith('/dashboard/inventario')) return 'inventario';
     if (r.startsWith('/dashboard/marketing'))  return 'marketing';
+    if (r.startsWith('/dashboard/delivery'))   return 'delivery';
     if (r.startsWith('/dashboard/metricas'))   return 'metricas';
+    if (r.startsWith('/dashboard/finanzas'))   return 'finanzas';
     return 'inicio';
   };
 
@@ -194,7 +229,10 @@ export default function Dashboard() {
       case 'carta':    return <DashboardCarta/>;
       case 'inventario': return <DashboardInventario/>;
       case 'marketing':  return <DashboardMarketing/>;
+      case 'delivery': return <DashboardDelivery/>;
+      case 'clientes': return <DashboardClientes/>;
       case 'metricas': return <DashboardMetricas/>;
+      case 'finanzas': return <DashboardFinanzas/>;
       default:         return <DashboardHome onNavigate={switchTab}/>;
     }
   };
@@ -430,7 +468,9 @@ export default function Dashboard() {
               }}>
                 {[
                   { id: 'inventario', label: 'Inventario', icon: '📦', desc: 'Insumos' },
+                  { id: 'finanzas',   label: 'Finanzas',    icon: '💵', desc: 'Caja' },
                   { id: 'marketing',  label: 'Marketing',   icon: '🚀', desc: 'Copiloto' },
+                  { id: 'delivery',   label: 'Delivery',    icon: '🛵', desc: 'Tarifas' },
                   { id: 'metricas',   label: 'Métricas',    icon: '📊', desc: 'Ventas' },
                 ].map(item => (
                   <button

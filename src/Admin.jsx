@@ -7,6 +7,7 @@ export default function Admin() {
   const [tab, setTab] = useState('Nuevos'); // 'Nuevos', 'En Cocina', 'Despachos', 'Historial'
   const [toastMsg, setToastMsg] = useState(null);
   const [processingOrders, setProcessingOrders] = useState({});
+  const [showInfo, setShowInfo] = useState(false);
 
   // Iconos SVG
   const Icon = {
@@ -333,6 +334,36 @@ export default function Admin() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', background: 'transparent' }}>
       
+      {/* ── Info de Ayuda Desplegable ── */}
+      <div style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-surface-3)',
+        borderRadius: 16,
+        padding: showInfo ? '16px 20px' : '10px 16px',
+        marginBottom: 16,
+        transition: 'all 0.2s ease',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setShowInfo(!showInfo)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>ℹ️</span>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', margin: 0 }}>¿Cómo funciona el Panel de Cocina?</p>
+          </div>
+          <span style={{ color: 'var(--color-primary)', fontWeight: 800, fontSize: 12, userSelect: 'none' }}>
+            {showInfo ? 'Ocultar info ▴' : 'Saber más ▾'}
+          </span>
+        </div>
+        {showInfo && (
+          <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-muted)', lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ margin: 0 }}>Este panel tipo <strong>Tablero Kanban</strong> está diseñado para el <strong>personal de cocina o despacho</strong>:</p>
+            <ul style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <li><strong>Tablero Kanban:</strong> Los pedidos fluyen de izquierda a derecha según su preparación (<code>Nuevos</code> ➔ <code>En Cocina / Listos</code> ➔ <code>Historial Reciente</code>).</li>
+              <li><strong>Preparación de platos:</strong> Cada tarjeta detalla las cantidades y platos específicos a elaborar sin información comercial compleja.</li>
+              <li><strong>Acción Directa:</strong> Haz clic en <em>"Aceptar y Cocinar"</em> para iniciar, o <em>"Listo para Recojo/Despacho"</em> una vez que los platos salen de la barra.</li>
+            </ul>
+          </div>
+        )}
+      </div>
+
       {/* HEADER MOVIL - Ocultado en Escritorio */}
       <div className="mobile-header-only" style={{ padding: '20px 20px 10px', background: 'var(--color-surface)', color: 'var(--color-on-surface)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -359,8 +390,8 @@ export default function Admin() {
                   {t}
                   {count > 0 && (
                     <span style={{ 
-                      background: isActive ? '#fff' : 'var(--color-primary)', 
-                      color: isActive ? 'var(--color-primary)' : '#fff', 
+                      background: isActive ? 'var(--color-surface)' : 'var(--color-primary)', 
+                      color: isActive ? 'var(--color-primary)' : 'var(--color-on-primary)', 
                       padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 900 
                     }}>
                       {count}
@@ -384,8 +415,8 @@ export default function Admin() {
               {/* Columna 1: Nuevos */}
               <div className="kanban-col">
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--color-surface-3)', paddingBottom: 10 }}>
-                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 14 }}>🟡 NUEVOS</h3>
-                  <span style={{ background: 'var(--color-surface-2)', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 14, color: 'var(--color-on-surface)' }}>🟡 NUEVOS</h3>
+                  <span style={{ background: 'var(--color-surface-2)', color: 'var(--color-on-surface)', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>
                     {orders.filter(o => o.estado === 'pendiente').length}
                   </span>
                 </div>
@@ -399,8 +430,8 @@ export default function Admin() {
               {/* Columna 2: En Cocina y Despachos */}
               <div className="kanban-col">
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--color-surface-3)', paddingBottom: 10 }}>
-                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 14 }}>🍳 EN COCINA / LISTOS</h3>
-                  <span style={{ background: 'var(--color-surface-2)', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 14, color: 'var(--color-on-surface)' }}>🍳 EN COCINA / LISTOS</h3>
+                  <span style={{ background: 'var(--color-surface-2)', color: 'var(--color-on-surface)', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>
                     {orders.filter(o => ['preparando', 'listo_para_recojo', 'en_camino'].includes(o.estado)).length}
                   </span>
                 </div>
@@ -414,8 +445,8 @@ export default function Admin() {
               {/* Columna 3: Historial reciente */}
               <div className="kanban-col">
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--color-surface-3)', paddingBottom: 10 }}>
-                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 14 }}>✅ HISTORIAL RECIENTE</h3>
-                  <span style={{ background: 'var(--color-surface-2)', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 14, color: 'var(--color-on-surface)' }}>✅ HISTORIAL RECIENTE</h3>
+                  <span style={{ background: 'var(--color-surface-2)', color: 'var(--color-on-surface)', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>
                     {orders.filter(o => ['entregado', 'cancelado'].includes(o.estado)).slice(0, 10).length}
                   </span>
                 </div>

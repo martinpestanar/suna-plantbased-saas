@@ -9,12 +9,15 @@ export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onL
   const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
 
   const menuItems = [
-    { id: 'inicio', icon: '🏠', label: 'Inicio' },
-    { id: 'pedidos', icon: '👨‍🍳', label: 'Pedidos' },
-    { id: 'carta', icon: '📋', label: 'Carta del Menú' },
+    { id: 'inicio',     icon: '🏠', label: 'Inicio' },
+    { id: 'ordenes',    icon: '🔔', label: 'Órdenes Live' },
+    { id: 'pedidos',    icon: '👨‍🍳', label: 'Pedidos' },
+    { id: 'carta',      icon: '📋', label: 'Carta del Menú' },
     { id: 'inventario', icon: '📦', label: 'Inventario' },
-    { id: 'marketing', icon: '🚀', label: 'Marketing' },
-    { id: 'metricas', icon: '📊', label: 'Métricas' },
+    { id: 'finanzas',   icon: '💵', label: 'Finanzas' },
+    { id: 'marketing',  icon: '🚀', label: 'Marketing' },
+    { id: 'delivery',   icon: '🛵', label: 'Delivery' },
+    { id: 'metricas',   icon: '📊', label: 'Métricas' },
   ];
 
   return (

@@ -53,8 +53,10 @@ function RootRouter() {
     return theme === 'light' ? <LandingLight /> : <Landing />;
   };
 
+  const isLanding = route === ROUTES.LANDING;
+
   return (
-    <div className={theme === 'light' ? 'desktop-root light' : 'desktop-root'}>
+    <div className={`${theme === 'light' ? 'desktop-root light' : 'desktop-root'} ${isLanding ? 'landing-root' : ''}`}>
       {renderPage()}
     </div>
   );

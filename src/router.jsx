@@ -10,7 +10,7 @@ export const ROUTES = {
   LANDING:           '/',
   LOGIN:             '/login',
   DASHBOARD:         '/dashboard',
-  MENU:              '/menu',
+  MENU:              '/ordenar',
   ONBOARDING:        '/onboarding',
 };
 
@@ -18,7 +18,7 @@ function getInitialRoute() {
   const p = window.location.pathname;
   if (p.startsWith('/dashboard'))       return p;
   if (p.startsWith('/login'))           return '/login';
-  if (p.startsWith('/menu'))            return '/menu';
+  if (p.startsWith('/ordenar'))         return '/ordenar';
   if (p.startsWith('/onboarding'))      return '/onboarding';
   return '/';
 }
