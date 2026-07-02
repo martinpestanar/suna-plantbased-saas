@@ -14,6 +14,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Desregistrar Service Workers anteriores de localhost -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister().then(function() {
+            console.log('Service Worker antiguo desregistrado.');
+            window.location.reload();
+          });
+        }
+      });
+    }
+  </script>
 </head>
 <body>
   <div id="root"></div>

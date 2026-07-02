@@ -13,6 +13,8 @@ import DashboardOrdenes from './dashboard/DashboardOrdenes.jsx';
 import DesktopSidebar from '../components/DesktopSidebar.jsx';
 import DashboardFinanzas from './dashboard/DashboardFinanzas.jsx';
 import DashboardClientes from './dashboard/DashboardClientes.jsx';
+import DashboardPremios from './dashboard/DashboardPremios.jsx';
+import DashboardSalon from './dashboard/DashboardSalon.jsx';
 
 
 /* ── Iconos Bottom Nav (reutilizados, colores adaptados vía prop) ── */
@@ -97,6 +99,17 @@ const IcoClientes = ({ active }) => (
   </svg>
 );
 
+const IcoPremios = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? '#1B4332' : '#8A8070'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 12 20 22 4 22 4 12"/>
+    <rect x="2" y="7" width="20" height="5"/>
+    <line x1="12" y1="22" x2="12" y2="7"/>
+    <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
+    <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+  </svg>
+);
+
 const MOBILE_TABS = [
   { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
   { id: 'ordenes',    label: 'Órdenes',     Icon: IcoOrdenes },
@@ -113,6 +126,7 @@ const TABS = [
   { id: 'marketing',  label: 'Marketing',       Icon: IcoMarketing },
   { id: 'delivery',   label: 'Delivery',        Icon: IcoDelivery },
   { id: 'clientes',   label: 'Clientes',        Icon: IcoClientes },
+  { id: 'premios',    label: 'Premios',         Icon: IcoPremios },
   { id: 'metricas',   label: 'Métricas',        Icon: IcoMetricas },
   { id: 'finanzas',   label: 'Finanzas',        Icon: IcoHome },
 ];
@@ -205,6 +219,9 @@ export default function DashboardLight() {
     if (r.startsWith('/dashboard/carta'))      return 'carta';
     if (r.startsWith('/dashboard/inventario')) return 'inventario';
     if (r.startsWith('/dashboard/marketing'))  return 'marketing';
+    if (r.startsWith('/dashboard/clientes'))   return 'clientes';
+    if (r.startsWith('/dashboard/premios'))    return 'premios';
+    if (r.startsWith('/dashboard/salon'))      return 'salon';
     if (r.startsWith('/dashboard/delivery'))   return 'delivery';
     if (r.startsWith('/dashboard/metricas'))   return 'metricas';
     if (r.startsWith('/dashboard/finanzas'))   return 'finanzas';
@@ -253,6 +270,8 @@ export default function DashboardLight() {
       case 'marketing':  return <DashboardMarketing/>;
       case 'delivery':   return <DashboardDelivery/>;
       case 'clientes':   return <DashboardClientes/>;
+      case 'premios':    return <DashboardPremios/>;
+      case 'salon':      return <DashboardSalon/>;
       case 'metricas':   return <DashboardMetricas/>;
       case 'finanzas':   return <DashboardFinanzas/>;
       default:           return <DashboardHome onNavigate={switchTab}/>;

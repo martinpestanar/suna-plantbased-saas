@@ -66,7 +66,6 @@ function BotStatus({ restaurantId }) {
     if (toggling) return;
     setToggling(true);
     const next = !active;
-    // TODO: actualizar en Supabase campo bot_activo en restaurantes
     setActive(next);
     if (navigator.vibrate) navigator.vibrate(next ? [10, 20, 10] : [30]);
     setTimeout(() => setToggling(false), 400);
@@ -124,6 +123,88 @@ function BotStatus({ restaurantId }) {
           <span style={{ fontSize: 11, color: 'rgba(216,243,220,0.55)', fontWeight: 600 }}>Tiempo real · Conectado a WhatsApp Business</span>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Reservations Status Toggle ── */
+function ReservationsStatus({ restaurant }) {
+  const [active, setActive] = useState(restaurant?.acepta_reservas ?? true);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    if (restaurant) {
+      setActive(restaurant.acepta_reservas ?? true);
+    }
+  }, [restaurant]);
+
+  const toggle = async () => {
+    if (toggling || !restaurant) return;
+    setToggling(true);
+    const next = !active;
+    try {
+      const { error } = await supabase
+        .from('restaurantes')
+        .update({ acepta_reservas: next })
+        .eq('id', restaurant.id);
+      
+      if (!error) {
+        setActive(next);
+        if (navigator.vibrate) navigator.vibrate(next ? [10, 20, 10] : [30]);
+      }
+    } catch (err) {
+      console.error('Error toggling reservations:', err);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div style={{
+      background: active
+        ? 'linear-gradient(135deg, #183A37 0%, #048A81 100%)'
+        : 'var(--color-surface)',
+      border: `1px solid ${active ? 'transparent' : 'var(--color-surface-3)'}`,
+      borderRadius: 'var(--radius-xl)', padding: '18px',
+      transition: 'all 300ms ease',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>📅</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: active ? 'rgba(255,255,255,0.7)' : 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reservas de Mesas</span>
+          </div>
+          <p style={{
+            fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 900, marginTop: 6,
+            color: active ? '#fff' : 'var(--color-on-surface)',
+          }}>
+            {active ? 'Reservas Habilitadas' : 'Solo por Llegada'}
+          </p>
+          <p style={{ fontSize: 11, marginTop: 2, color: active ? 'rgba(255,255,255,0.6)' : 'var(--color-muted)', fontWeight: 600 }}>
+            {active ? 'El chatbot gestionará reservas' : 'El chatbot informará que no hay reservas'}
+          </p>
+        </div>
+        {/* Toggle iOS */}
+        <button
+          onClick={toggle}
+          style={{
+            width: 52, height: 30, borderRadius: 15,
+            background: active ? '#fff' : 'rgba(255,255,255,0.1)',
+            border: 'none', cursor: 'pointer', position: 'relative',
+            transition: 'background 300ms ease',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{
+            position: 'absolute', top: 3,
+            left: active ? 24 : 3,
+            width: 24, height: 24, borderRadius: '50%',
+            background: active ? '#183A37' : 'rgba(0,0,0,0.2)',
+            transition: 'left 300ms cubic-bezier(0.34,1.56,0.64,1), background 300ms',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+          }}/>
+        </button>
+      </div>
     </div>
   );
 }
@@ -240,6 +321,7 @@ export default function DashboardHome({ onNavigate }) {
           sub="Por pedido hoy"
         />
         <BotStatus restaurantId={activeRestaurant?.id} />
+        <ReservationsStatus restaurant={activeRestaurant} />
       </div>
 
       {/* Layout Principal de 2 Columnas en Desktop */}

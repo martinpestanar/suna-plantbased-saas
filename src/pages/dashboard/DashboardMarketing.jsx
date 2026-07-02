@@ -18,6 +18,11 @@ export default function DashboardMarketing() {
   const [loading, setLoading] = useState(true);
   const [proposalsLoading, setProposalsLoading] = useState(true);
 
+  // Estados del Planificador Semanal de Venta Sugerida
+  const [weeklyPlanner, setWeeklyPlanner] = useState({});
+  const [selectedPlannerDay, setSelectedPlannerDay] = useState('lunes');
+  const [selectedPlannerItemId, setSelectedPlannerItemId] = useState('');
+
   // Estados de Responsividad y Navegación
   const [activeTab, setActiveTab] = useState('campanas');
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
@@ -169,9 +174,65 @@ export default function DashboardMarketing() {
     setReachLimit(size);
   }, [selectedSegment, segments]);
 
+  const fetchWeeklyPlanner = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('planificador_semanal')
+        .select('*')
+        .eq('restaurante_id', activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb');
+      
+      if (!error && data) {
+        const mapping = {};
+        data.forEach(d => {
+          mapping[d.dia_semana] = d.item_id;
+        });
+        setWeeklyPlanner(mapping);
+      }
+    } catch (err) {
+      console.error('Error fetching weekly planner:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (weeklyPlanner[selectedPlannerDay]) {
+      setSelectedPlannerItemId(weeklyPlanner[selectedPlannerDay]);
+    } else {
+      setSelectedPlannerItemId('');
+    }
+  }, [selectedPlannerDay, weeklyPlanner]);
+
+  const handleSavePlannerDay = async (e) => {
+    e.preventDefault();
+    if (!activeRestaurant) return;
+    try {
+      if (selectedPlannerItemId) {
+        const { error } = await supabase
+          .from('planificador_semanal')
+          .upsert([{
+            restaurante_id: activeRestaurant.id,
+            dia_semana: selectedPlannerDay,
+            item_id: selectedPlannerItemId
+          }], { onConflict: 'restaurante_id,dia_semana' });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('planificador_semanal')
+          .delete()
+          .eq('restaurante_id', activeRestaurant.id)
+          .eq('dia_semana', selectedPlannerDay);
+        if (error) throw error;
+      }
+      showToast(`📅 Planificador: ${selectedPlannerDay.toUpperCase()} actualizado`);
+      fetchWeeklyPlanner();
+    } catch (err) {
+      console.error('Error saving weekly planner:', err);
+      showToast('❌ Error al guardar planificador');
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchSegments(), fetchProposals(), fetchActiveComboSettings()]);
+    await Promise.all([fetchSegments(), fetchProposals(), fetchActiveComboSettings(), fetchWeeklyPlanner()]);
     setLoading(false);
   };
 
@@ -310,6 +371,13 @@ export default function DashboardMarketing() {
           const { error: menuErr } = await supabase
             .from('items_menu')
             .update({ disponible: false })
+            .eq('id', plato_id);
+          if (menuErr) throw menuErr;
+        }
+        else if (prop.tipo_propuesta === 'sugerencia_upsell') {
+          const { error: menuErr } = await supabase
+            .from('items_menu')
+            .update({ upsell_destacado: true })
             .eq('id', plato_id);
           if (menuErr) throw menuErr;
         }
@@ -983,6 +1051,8 @@ export default function DashboardMarketing() {
                 theme = { bg: 'rgba(111,66,193,0.04)', border: 'rgba(111,66,193,0.15)', badge: '💤 CLIENTE INACTIVO', badgeColor: '#6F42C1', icon: '👥' };
               } else if (prop.tipo_propuesta === 'combo_inteligente') {
                 theme = { bg: 'rgba(27,67,50,0.04)', border: 'rgba(27,67,50,0.15)', badge: '🎯 COMBO COMPRA', badgeColor: '#1B4332', icon: '🍔' };
+              } else if (prop.tipo_propuesta === 'sugerencia_upsell') {
+                theme = { bg: 'rgba(64,145,108,0.04)', border: 'rgba(64,145,108,0.15)', badge: '✨ VENTA SUGERIDA (UPSELL)', badgeColor: '#40916C', icon: '💡' };
               }
 
               const isAnimating = animatingId === prop.id;
@@ -1049,6 +1119,11 @@ export default function DashboardMarketing() {
                     {prop.tipo_propuesta === 'combo_inteligente' && (
                       <p style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 6 }}>
                         Combo: <strong>{prop.meta_data.combo_nombre}</strong> · Sugerido: <span style={{ color: '#1B4332', fontWeight: 800 }}>S/. {prop.meta_data.precio_combo.toFixed(2)}</span>
+                      </p>
+                    )}
+                    {prop.tipo_propuesta === 'sugerencia_upsell' && (
+                      <p style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 6 }}>
+                        Destacar en comanderos: <strong>{prop.meta_data.plato_nombre}</strong> para incentivar la venta cruzada y aumentar el ticket promedio.
                       </p>
                     )}
                   </div>
@@ -1137,6 +1212,123 @@ export default function DashboardMarketing() {
             >
               <div style={{ position: 'absolute', top: 3, left: autoStockOut ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 250ms', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPlanificadorSemanalSection = () => {
+    const diasSemana = [
+      { id: 'lunes', label: 'Lu' },
+      { id: 'martes', label: 'Ma' },
+      { id: 'miercoles', label: 'Mi' },
+      { id: 'jueves', label: 'Ju' },
+      { id: 'viernes', label: 'Vi' },
+      { id: 'sabado', label: 'Sa' },
+      { id: 'domingo', label: 'Do' }
+    ];
+
+    return (
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 24, padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <span style={{ fontSize: 24 }}>📅</span>
+          <div>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 900, color: 'var(--color-on-surface)' }}>
+              Planificador Semanal de Venta Sugerida
+            </h3>
+            <p style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2 }}>
+              Define qué adicionales/bebidas sugerirá el mozo cada día de la semana
+            </p>
+          </div>
+        </div>
+
+        {/* Picker horizontal de días */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          {diasSemana.map(d => {
+            const isSelected = selectedPlannerDay === d.id;
+            const hasAssignment = !!weeklyPlanner[d.id];
+            
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => { setSelectedPlannerDay(d.id); if (navigator.vibrate) navigator.vibrate(5); }}
+                style={{
+                  flex: 1,
+                  padding: '10px 0',
+                  borderRadius: 12,
+                  border: isSelected ? '2px solid var(--color-secondary)' : '1px solid var(--color-surface-3)',
+                  background: isSelected ? 'var(--color-surface-2)' : '#fff',
+                  color: isSelected ? 'var(--color-primary)' : 'var(--color-muted)',
+                  fontSize: 11,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  position: 'relative'
+                }}
+              >
+                {d.label}
+                {hasAssignment && (
+                  <span style={{
+                    position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: 'var(--color-secondary)'
+                  }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <form onSubmit={handleSavePlannerDay} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>
+              Plato / Bebida para {selectedPlannerDay.toUpperCase()}
+            </label>
+            <select
+              value={selectedPlannerItemId}
+              onChange={e => setSelectedPlannerItemId(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">-- Sin Venta Sugerida --</option>
+              {menuItems.map(item => (
+                <option key={item.id} value={item.id}>{item.nombre} (S/. {parseFloat(item.precio).toFixed(2)})</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            style={{
+              background: 'var(--color-primary)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 12,
+              padding: '10px',
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 4px 10px rgba(27,67,50,0.1)'
+            }}
+          >
+            💾 Programar Sugerencia
+          </button>
+        </form>
+
+        {/* Resumen semanal rápido */}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1.5px dashed var(--color-surface-3)' }}>
+          <p style={{ fontSize: 9, fontWeight: 900, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Resumen de la Semana:</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {diasSemana.map(d => {
+              const itemId = weeklyPlanner[d.id];
+              const item = menuItems.find(i => i.id === itemId);
+              return (
+                <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--color-on-surface)' }}>
+                  <span style={{ fontWeight: 800, textTransform: 'capitalize' }}>{d.id}:</span>
+                  <span style={{ color: item ? 'var(--color-secondary)' : 'var(--color-muted)', fontWeight: 700 }}>
+                    {item ? item.nombre : 'Ninguna'}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1640,6 +1832,7 @@ export default function DashboardMarketing() {
           {/* Columna Derecha (Sticky) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24, position: 'sticky', top: 20 }}>
             {renderCopilotoSection()}
+            {renderPlanificadorSemanalSection()}
             {renderTriggersSection()}
             {renderComboSection()}
           </div>
@@ -1657,6 +1850,7 @@ export default function DashboardMarketing() {
           {activeTab === 'copiloto' && (
             <>
               {renderCopilotoSection()}
+              {renderPlanificadorSemanalSection()}
               {renderTriggersSection()}
             </>
           )}

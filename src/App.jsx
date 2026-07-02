@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { useTheme } from './router.jsx';
+import { useTheme, useRouter } from './router.jsx';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -42,6 +42,15 @@ const Icon = {
       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884"/>
     </svg>
   ),
+  gift: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 12 20 22 4 22 4 12"/>
+      <rect x="2" y="7" width="20" height="5"/>
+      <line x1="12" y1="22" x2="12" y2="7"/>
+      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
+      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+    </svg>
+  ),
 };
 
 /* ─── Datos de fallback para modo offline / demo ─── */
@@ -73,10 +82,81 @@ const FALLBACK_ITEMS = [
 /* ─── COMPONENTE PRINCIPAL ─── */
 export default function App() {
   const { theme } = useTheme();
+  const { tenantSlug, clientIdentifier } = useRouter();
   // ── Estado general ──
-  const [tab, setTab]         = useState('menu');  // 'menu' | 'buscar' | 'carrito'
+  const [tab, setTab]         = useState(clientIdentifier ? 'club' : 'menu');  // Iniciar en club si hay clientIdentifier
   const [catId, setCatId]     = useState('all');
   const [query, setQuery]     = useState('');
+
+  // ── Estados Club Lealtad ──
+  const [clientInfo, setClientInfo] = useState(null);
+  const [clientOrders, setClientOrders] = useState([]);
+  const [favoriteItemId, setFavoriteItemId] = useState(null);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [inputPhone, setInputPhone] = useState(clientIdentifier || '');
+  const [redeemSuccess, setRedeemSuccess] = useState(false);
+  const [premiosClub, setPremiosClub] = useState([]);
+
+  /* ── Gamificación Club Lealtad ── */
+  const getNextGoal = (pts) => {
+    if (!premiosClub || premiosClub.length === 0) {
+      return { name: 'Premio Club Suna', target: 50, emoji: '🎁' };
+    }
+    // Asumimos que premiosClub viene ordenado por costo_puntos (lo ordenaremos en el fetch)
+    const nextPremio = premiosClub.find(p => p.costo_puntos > pts);
+    if (nextPremio) {
+      return { name: nextPremio.nombre, target: nextPremio.costo_puntos, emoji: nextPremio.emoji || '🎁' };
+    }
+    // Si ya superó todos, mostramos la meta máxima
+    const highest = premiosClub[premiosClub.length - 1];
+    return { name: highest.nombre, target: highest.costo_puntos, emoji: highest.emoji || '🎁' };
+  };
+
+  const renderProgressBar = (pts) => {
+    const goal = getNextGoal(pts);
+    const percentage = Math.min(100, Math.floor((pts / goal.target) * 100));
+    const pointsNeeded = goal.target - pts;
+    const isCompleted = pts >= goal.target;
+
+    return (
+      <div style={{
+        background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)',
+        borderRadius: 20, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.01)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            🎯 Próximo objetivo: {goal.name}
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-primary)' }}>
+            {percentage}%
+          </span>
+        </div>
+        
+        {/* Progress Track */}
+        <div style={{
+          width: '100%', height: 8, background: 'var(--color-surface-3)',
+          borderRadius: 4, overflow: 'hidden', position: 'relative'
+        }}>
+          <div style={{
+            width: `${percentage}%`, height: '100%',
+            background: 'linear-gradient(90deg, var(--color-primary) 0%, var(--color-secondary) 100%)',
+            borderRadius: 4, transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 0 8px rgba(64,145,108,0.3)'
+          }} />
+        </div>
+
+        {/* Status text */}
+        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-on-surface)', margin: 0, lineHeight: 1.3 }}>
+          {isCompleted ? (
+            <span>¡Felicidades! Tienes puntos suficientes para reclamar tu <b>{goal.name}</b> {goal.emoji} 🎉</span>
+          ) : (
+            <span>Te faltan <b>{pointsNeeded} pts</b> para conseguir tu <b>{goal.name}</b> {goal.emoji} 🎁</span>
+          )}
+        </p>
+      </div>
+    );
+  };
 
   // ── Datos de Supabase ──
   const [restaurant, setRestaurant] = useState(FALLBACK_RESTAURANT);
@@ -253,15 +333,22 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const { data: res } = await supabase.from('restaurantes').select('*').limit(1);
-        const rest = res?.[0] || FALLBACK_RESTAURANT;
+        let rest = FALLBACK_RESTAURANT;
+        if (tenantSlug) {
+          const { data: res } = await supabase.from('restaurantes').select('*').eq('slug', tenantSlug).single();
+          if (res) rest = res;
+        } else {
+          const { data: res } = await supabase.from('restaurantes').select('*').limit(1);
+          if (res?.[0]) rest = res[0];
+        }
         setRestaurant(rest);
 
-        const [{ data: catData }, { data: itemData }, { data: comboData }, { data: zonesData }] = await Promise.all([
-          supabase.from('categorias_menu').select('*'),
-          supabase.from('items_menu').select('*').eq('disponible', true),
-          supabase.from('combo_del_dia').select('*').eq('activo', true).order('created_at', { ascending: false }).limit(1),
+        const [{ data: catData }, { data: itemData }, { data: comboData }, { data: zonesData }, { data: premiosData }] = await Promise.all([
+          supabase.from('categorias_menu').select('*').eq('restaurante_id', rest.id),
+          supabase.from('items_menu').select('*').eq('disponible', true).eq('restaurante_id', rest.id),
+          supabase.from('combo_del_dia').select('*').eq('activo', true).eq('restaurante_id', rest.id).order('created_at', { ascending: false }).limit(1),
           supabase.from('zonas_delivery').select('*').eq('restaurante_id', rest.id).order('nombre'),
+          supabase.from('premios').select('*').eq('restaurante_id', rest.id).eq('activo', true).order('costo_puntos', { ascending: true }),
         ]);
 
         if (catData?.length) { setCats(catData); setCatId('all'); }
@@ -278,6 +365,9 @@ export default function App() {
         if (zonesData?.length) {
           setZones(zonesData);
         }
+        if (premiosData?.length) {
+          setPremiosClub(premiosData);
+        }
       } catch (e) {
         console.error('DB offline o error, usando datos demo/fallbacks', e);
         setCatId('all');
@@ -285,7 +375,89 @@ export default function App() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [tenantSlug]);
+
+  /* ── Club Lealtad Logic ── */
+  const fetchClientLoyalty = async (phoneNum) => {
+    if (!phoneNum || !restaurant?.id) return;
+    setLoyaltyLoading(true);
+    try {
+      const { data: client, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('telefono', phoneNum.trim())
+        .eq('restaurante_id', restaurant.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (client) {
+        setClientInfo(client);
+        const { data: orders, error: ordersError } = await supabase
+          .from('ordenes')
+          .select('*')
+          .eq('cliente_id', client.id)
+          .order('created_at', { ascending: false });
+
+        if (!ordersError && orders?.length > 0) {
+          setClientOrders(orders);
+          
+          // Obtener los detalles de todas las ordenes para calcular el favorito
+          const orderIds = orders.map(o => o.id);
+          const { data: details, error: detailsError } = await supabase
+            .from('detalles_orden')
+            .select('item_id, cantidad')
+            .in('orden_id', orderIds);
+
+          if (!detailsError && details?.length > 0) {
+            const counts = {};
+            details.forEach(d => {
+              counts[d.item_id] = (counts[d.item_id] || 0) + (d.cantidad || 1);
+            });
+            const favId = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+            setFavoriteItemId(favId);
+          }
+        } else {
+          setClientOrders([]);
+          setFavoriteItemId(null);
+        }
+      } else {
+        setClientInfo(null);
+        setClientOrders([]);
+        setFavoriteItemId(null);
+      }
+    } catch (e) {
+      console.error("Error cargando lealtad:", e);
+    } finally {
+      setLoyaltyLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (clientIdentifier && restaurant?.id) {
+      setInputPhone(clientIdentifier);
+      fetchClientLoyalty(clientIdentifier);
+    }
+  }, [clientIdentifier, restaurant?.id]);
+
+  const handleRedeemReward = async (pointsCost, rewardName) => {
+    if (!clientInfo || clientInfo.puntos < pointsCost) return;
+    try {
+      const newPoints = clientInfo.puntos - pointsCost;
+      const { error } = await supabase
+        .from('clientes')
+        .update({ puntos: newPoints })
+        .eq('id', clientInfo.id);
+
+      if (!error) {
+        setClientInfo(prev => ({ ...prev, puntos: newPoints }));
+        showToast(`¡Canje exitoso! Disfruta tu ${rewardName} 🎁`, 'success');
+      } else throw error;
+    } catch (err) {
+      console.error(err);
+      showToast('Error al procesar el canje', 'error');
+    }
+  };
 
   // ── Cuenta regresiva del Combo ──
   useEffect(() => {
@@ -1023,8 +1195,226 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+              ) : tab === 'club' ? (
+                /* Club Lealtad View */
+                <div className="loyalty-container" style={{ padding:'16px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:18 }}>
+                  {!clientInfo ? (
+                    /* PHONE INPUT FORM */
+                    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 24, padding: 24, textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.05)' }}>
+                      <span style={{ fontSize: 44 }}>🥑</span>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, marginTop: 12, marginBottom: 6 }}>Club de Puntos SUNA</h3>
+                      <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 20 }}>Consulta tus puntos acumulados, premios listos para canjear e historial de pedidos ingresando tu celular.</p>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <input
+                          type="tel"
+                          placeholder="Número de WhatsApp (ej: 51987654321)"
+                          value={inputPhone}
+                          onChange={e => setInputPhone(e.target.value)}
+                          style={{
+                            width: '100%', padding: '14px 16px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)',
+                            borderRadius: 14, color: 'var(--color-on-surface)', fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none'
+                          }}
+                        />
+                        <button
+                          onClick={() => fetchClientLoyalty(inputPhone)}
+                          disabled={loyaltyLoading || !inputPhone.trim()}
+                          style={{
+                            width: '100%', padding: '14px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 14,
+                            fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                          }}
+                        >
+                          {loyaltyLoading ? 'Cargando...' : '🔍 Buscar Mis Puntos'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* IDENTIFIED CLIENT */
+                    <>
+                      {/* CARD CLUB LEALTAD */}
+                      <div style={{
+                        background: 'linear-gradient(135deg, var(--color-primary) 0%, #1b4332 100%)',
+                        borderRadius: 24, padding: 24, color: '#fff', position: 'relative', overflow: 'hidden',
+                        boxShadow: '0 12px 24px rgba(27,67,50,0.15)'
+                      }}>
+                        <div style={{ position: 'absolute', right: -20, bottom: -20, fontSize: 120, opacity: 0.15, transform: 'rotate(-15deg)', pointerEvents: 'none' }}>🥑</div>
+                        <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.8, margin: 0 }}>Tarjeta de Lealtad</p>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, marginTop: 4, marginBottom: 16 }}>{clientInfo.nombre}</h3>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                          <div>
+                            <p style={{ fontSize: 10, opacity: 0.8, margin: 0 }}>Saldo Disponible</p>
+                            <p style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              🪙 {clientInfo.puntos} <span style={{ fontSize: 14, fontWeight: 700, opacity: 0.9 }}>pts</span>
+                            </p>
+                          </div>
+                          <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: 12, fontWeight: 700 }}>
+                            📞 {clientInfo.telefono}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* PROGRESO GAMIFICADO */}
+                      {renderProgressBar(clientInfo.puntos)}
+
+                      {/* PREMIOS Y CANJES */}
+                      <div>
+                        <h4 style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          🎁 Canjear Mis Premios
+                        </h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {(!premiosClub || premiosClub.length === 0) ? (
+                            <p style={{ fontSize: 12, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0' }}>No hay premios disponibles por ahora.</p>
+                          ) : premiosClub.map(reward => {
+                            const canRedeem = clientInfo.puntos >= reward.costo_puntos;
+                            return (
+                              <div key={reward.id} style={{
+                                background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 18, padding: 14,
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12
+                              }}>
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                                  <span style={{ fontSize: 24, width: 40, height: 40, borderRadius: 12, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {reward.emoji || '🎁'}
+                                  </span>
+                                  <div>
+                                    <p style={{ fontSize: 13, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>{reward.nombre}</p>
+                                    <p style={{ fontSize: 10, color: 'var(--color-muted)', margin: '2px 0 0 0' }}>{reward.descripcion}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleRedeemReward(reward.costo_puntos, reward.nombre)}
+                                  disabled={!canRedeem}
+                                  style={{
+                                    padding: '8px 12px', background: canRedeem ? 'var(--color-secondary)' : 'var(--color-surface-2)',
+                                    color: canRedeem ? 'var(--color-on-secondary)' : 'var(--color-muted)', border: 'none', borderRadius: 12,
+                                    fontSize: 11, fontWeight: 900, cursor: canRedeem ? 'pointer' : 'default', transition: 'all 0.2s', whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  {reward.costo_puntos} pts
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* HISTORIAL DE PEDIDOS */}
+                      <div>
+                        <h4 style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          📋 Mis Pedidos Recientes
+                        </h4>
+                        {clientOrders.length === 0 ? (
+                          <p style={{ fontSize: 12, color: 'var(--color-muted)', textAlign: 'center', padding: '20px 0' }}>Aún no tienes pedidos registrados.</p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {clientOrders.map(order => {
+                              const date = new Date(order.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+                              let statusLabel = 'Recibido';
+                              let statusBg = 'var(--color-surface-2)';
+                              let statusColor = 'var(--color-muted)';
+                              if (order.estado === 'en_cocina' || order.estado === 'preparando') { statusLabel = 'Preparando'; statusBg = '#FEF3C7'; statusColor = '#D97706'; }
+                              else if (order.estado === 'listo' || order.estado === 'listo_para_recojo') { statusLabel = 'Listo'; statusBg = '#D1FAE5'; statusColor = '#10B981'; }
+                              else if (order.estado === 'en_camino') { statusLabel = 'En Delivery'; statusBg = '#E0F2FE'; statusColor = '#0284C7'; }
+                              else if (order.estado === 'entregado') { statusLabel = 'Entregado'; statusBg = '#D1FAE5'; statusColor = '#10B981'; }
+                              else if (order.estado === 'cancelado') { statusLabel = 'Cancelado'; statusBg = '#FEE2E2'; statusColor = '#EF4444'; }
+
+                              return (
+                                <div key={order.id} style={{
+                                  background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 16, padding: 14,
+                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                }}>
+                                  <div>
+                                    <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>Pedido #{order.id.split('-')[0]}</p>
+                                    <p style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2, margin: 0 }}>{date} • S/. {parseFloat(order.total).toFixed(2)}</p>
+                                  </div>
+                                  <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 8, background: statusBg, color: statusColor }}>
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SALIR DEL PANEL */}
+                      <button
+                        onClick={() => { setClientInfo(null); setInputPhone(''); }}
+                        style={{
+                          width: '100%', padding: '10px', background: 'transparent', color: 'var(--color-danger)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                          borderRadius: 14, fontSize: 12, fontWeight: 800, cursor: 'pointer', marginTop: 10
+                        }}
+                      >
+                        Cerrar Sesión del Club
+                      </button>
+                    </>
+                  )}
+                </div>
               ) : (
                 <div style={{ padding:'12px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:10 }}>
+                  {/* WELCOME CUSTOMER WIDGET */}
+                  {clientInfo && (
+                    <div style={{
+                      background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)',
+                      borderRadius: 24, padding: 18, display: 'flex', flexDirection: 'column', gap: 14,
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.02)', marginBottom: 4
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 13, color: 'var(--color-muted)', margin: 0, fontWeight: 600 }}>¡Hola de nuevo, {clientInfo.nombre}! 👋</p>
+                          <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-secondary)', marginTop: 2, margin: 0 }}>
+                            Tienes 🪙 {clientInfo.puntos} puntos en tu Club
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => { setTab('club'); if(navigator.vibrate) navigator.vibrate(5); }}
+                          style={{
+                            padding: '6px 12px', background: 'var(--color-surface-2)', border: '1px solid var(--color-surface-3)',
+                            borderRadius: 10, fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface)', cursor: 'pointer', flexShrink: 0
+                          }}
+                        >
+                          🎁 Canjear pts
+                        </button>
+                      </div>
+
+                      {/* PROGRESO DE LEALTAD */}
+                      {renderProgressBar(clientInfo.puntos)}
+
+                      {/* FAVORITE ITEM RECOMMENDATION */}
+                      {favoriteItemId && (() => {
+                        const favItem = items.find(i => i.id === favoriteItemId);
+                        if (!favItem) return null;
+                        return (
+                          <div style={{
+                            background: 'var(--color-surface-2)', borderRadius: 16, padding: 10,
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10
+                          }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
+                              <img
+                                src={favItem.imagen_url}
+                                alt={favItem.nombre}
+                                style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
+                              />
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ fontSize: 8, color: 'var(--color-secondary)', fontWeight: 800, margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>⭐ Tu favorito de siempre</p>
+                                <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{favItem.nombre}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => { addItem(favItem.id); if(navigator.vibrate) navigator.vibrate(5); }}
+                              style={{
+                                padding: '5px 10px', background: 'var(--color-primary)', color: '#fff', border: 'none',
+                                borderRadius: 8, fontSize: 10, fontWeight: 800, cursor: 'pointer', flexShrink: 0
+                              }}
+                            >
+                              🛒 Repetir
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
                   {/* Banner hero solo en menu sin filtro */}
                   {tab === 'menu' && catId === 'all' && !query && (() => {
                     const activeBurgerItem = items.find(i => i.id === activeCombo?.hamburguesa_id);
@@ -1245,6 +1635,7 @@ export default function App() {
                     </svg>
                   )},
                   { id:'buscar',  label:'Buscar',  icon: () => Icon.search() },
+                  { id:'club',    label:'Mis Puntos', icon: () => Icon.gift() },
                   { id:'carrito', label:'Carrito', badge: totalQty, icon: () => Icon.cart() },
                 ].map(({ id, label, icon, badge }) => {
                   const active = id === 'carrito' ? false : tab === id;

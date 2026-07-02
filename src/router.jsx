@@ -14,13 +14,41 @@ export const ROUTES = {
   ONBOARDING:        '/onboarding',
 };
 
-function getInitialRoute() {
+export function parsePath() {
   const p = window.location.pathname;
-  if (p.startsWith('/dashboard'))       return p;
-  if (p.startsWith('/login'))           return '/login';
-  if (p.startsWith('/ordenar'))         return '/ordenar';
-  if (p.startsWith('/onboarding'))      return '/onboarding';
-  return '/';
+  const parts = p.split('/').filter(Boolean);
+  
+  if (parts.length === 0) {
+    return { slug: null, route: '/', clientIdentifier: null };
+  }
+  
+  // Public/static global routes
+  if (['login', 'onboarding'].includes(parts[0])) {
+    return { slug: null, route: '/' + parts[0], clientIdentifier: null };
+  }
+  
+  const knownSubRoutes = ['dashboard', 'ordenar', 'pedidos', 'carta', 'finanzas'];
+  
+  // If the first part itself is a known route (e.g., /dashboard/marketing or /dashboard)
+  if (knownSubRoutes.includes(parts[0])) {
+    const subRoutePath = '/' + parts.join('/');
+    return { slug: null, route: subRoutePath, clientIdentifier: null };
+  }
+  
+  // Case 1: /[restaurantSlug]/ordenar/[clientIdentifier]
+  if (parts.length >= 3 && parts[1] === 'ordenar') {
+    return { slug: parts[0], route: '/ordenar', clientIdentifier: parts[2] };
+  }
+  
+  // Case 2: /[restaurantSlug]/[route]
+  if (parts.length >= 2 && knownSubRoutes.includes(parts[1])) {
+    const subRoutePath = '/' + parts.slice(1).join('/');
+    return { slug: parts[0], route: subRoutePath, clientIdentifier: null };
+  }
+  
+  // Case 3: /[restaurantSlug]
+  // Treat as /ordenar by default
+  return { slug: parts[0], route: '/ordenar', clientIdentifier: null };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -34,7 +62,8 @@ const ThemeContext = createContext(null);
 const AuthContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [route, setRoute]       = useState(getInitialRoute);
+  const [urlInfo, setUrlInfo]   = useState(parsePath);
+  const { slug: tenantSlug, route, clientIdentifier } = urlInfo;
   const [session, setSession]   = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   
@@ -53,6 +82,15 @@ export function AppProvider({ children }) {
   const [restaurants, setRestaurants]   = useState([]);
   const [activeRestaurant, setActiveRestaurant] = useState(null);
   const [resLoading, setResLoading]     = useState(false);
+
+  /* ── Popstate listener for back/forward browser navigation ── */
+  useEffect(() => {
+    const handlePopState = () => {
+      setUrlInfo(parsePath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   /* ── Sesión Supabase ── */
   useEffect(() => {
@@ -88,18 +126,42 @@ export function AppProvider({ children }) {
   const fetchRestaurants = async () => {
     setResLoading(true);
     try {
-      // Asumimos tabla restaurantes con columna admin_user_id o una tabla pivote
-      // Fallback: traer todos si el sistema aún no tiene RLS por usuario
       const { data, error } = await supabase
         .from('restaurantes')
         .select('*')
         .order('nombre');
       if (!error && data?.length) {
         setRestaurants(data);
-        // Restaurar último restaurante seleccionado desde localStorage
+        
+        // Determinar qué restaurante activar
         const savedId = localStorage.getItem('suna_active_restaurant');
-        const found = savedId ? data.find(r => r.id === savedId) : null;
-        setActiveRestaurant(found ?? data[0]);
+        let active = null;
+        
+        // 1. Priorizar si el slug de la URL coincide con alguno de los restaurantes del usuario
+        if (tenantSlug) {
+          active = data.find(r => r.slug === tenantSlug);
+        }
+        
+        // 2. Si no coincide, intentar con el guardado en localStorage
+        if (!active && savedId) {
+          active = data.find(r => r.id === savedId);
+        }
+        
+        // 3. Fallback al primero
+        if (!active) {
+          active = data[0];
+        }
+
+        setActiveRestaurant(active);
+        
+        // Redirigir URL si no tiene slug pero el restaurante activo tiene uno
+        const currentPathInfo = parsePath();
+        if (!currentPathInfo.slug && active.slug) {
+          const targetRoute = currentPathInfo.route === '/' ? '/dashboard' : currentPathInfo.route;
+          const browserPath = `/${active.slug}${targetRoute}`;
+          window.history.pushState({}, '', browserPath);
+          setUrlInfo({ slug: active.slug, route: targetRoute, clientIdentifier: null });
+        }
       }
     } catch (e) {
       console.error('Error cargando restaurantes:', e);
@@ -111,13 +173,42 @@ export function AppProvider({ children }) {
   const selectRestaurant = useCallback((restaurant) => {
     setActiveRestaurant(restaurant);
     localStorage.setItem('suna_active_restaurant', restaurant.id);
-  }, []);
+    if (restaurant.slug) {
+      const browserPath = `/${restaurant.slug}${route}`;
+      window.history.pushState({}, '', browserPath);
+      setUrlInfo({ slug: restaurant.slug, route: route, clientIdentifier: null });
+    }
+  }, [route]);
 
   /* ── Navegación ── */
   const navigate = useCallback((newRoute) => {
-    setRoute(newRoute);
-    window.history.pushState({}, '', newRoute);
-  }, []);
+    const parts = newRoute.split('/').filter(Boolean);
+    let nextSlug = tenantSlug;
+    let nextRoute = newRoute;
+    let nextClient = null;
+
+    if (parts.length === 0 || newRoute === '/') {
+      nextSlug = null;
+      nextRoute = '/';
+    } else if (['login', 'onboarding'].includes(parts[0])) {
+      nextSlug = null;
+      nextRoute = '/' + parts[0];
+    } else {
+      if (parts[0] === 'ordenar' && parts[1]) {
+        nextRoute = '/ordenar';
+        nextClient = parts[1];
+      } else {
+        nextRoute = '/' + parts.join('/');
+      }
+    }
+
+    const browserPath = nextSlug 
+      ? `/${nextSlug}${nextRoute}${nextClient ? '/' + nextClient : ''}` 
+      : nextRoute;
+
+    window.history.pushState({}, '', browserPath);
+    setUrlInfo({ slug: nextSlug, route: nextRoute, clientIdentifier: nextClient });
+  }, [tenantSlug]);
 
   /* ── Dev Login Bypass ── */
   const loginAsDev = useCallback(() => {
@@ -130,6 +221,7 @@ export function AppProvider({ children }) {
     };
     localStorage.setItem('suna_mock_session', JSON.stringify(mockSession));
     setSession(mockSession);
+    // Redirigir a dashboard
     navigate(ROUTES.DASHBOARD);
   }, [navigate]);
 
@@ -141,7 +233,7 @@ export function AppProvider({ children }) {
     navigate(ROUTES.LANDING);
   }, [navigate]);
 
-  const routerValue = { route, navigate };
+  const routerValue = { route, navigate, tenantSlug, clientIdentifier };
   const authValue   = {
     session, authLoading, logout, loginAsDev,
     restaurants, activeRestaurant, selectRestaurant, resLoading, fetchRestaurants,

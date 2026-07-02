@@ -16,6 +16,9 @@ export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onL
     { id: 'inventario', icon: '📦', label: 'Inventario' },
     { id: 'finanzas',   icon: '💵', label: 'Finanzas' },
     { id: 'marketing',  icon: '🚀', label: 'Marketing' },
+    { id: 'clientes',   icon: '👥', label: 'Clientes (CRM)' },
+    { id: 'premios',    icon: '🎁', label: 'Premios & Canjes' },
+    { id: 'salon',      icon: '🪑', label: 'Pedidos Salón' },
     { id: 'delivery',   icon: '🛵', label: 'Delivery' },
     { id: 'metricas',   icon: '📊', label: 'Métricas' },
   ];

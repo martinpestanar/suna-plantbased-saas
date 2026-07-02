@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../supabaseClient.js';
 import { useAuth } from '../../router.jsx';
-import { RiWhatsappLine } from 'react-icons/ri';
+import { RiWhatsappLine, RiEditLine, RiDeleteBinLine, RiUserAddLine } from 'react-icons/ri';
 
 const AUDIENCIAS = [
   { id: 'todas', label: '👥 Todos', color: 'var(--color-primary)' },
@@ -21,6 +21,16 @@ export default function DashboardClientes() {
   const [selectedCliente, setSelectedCliente] = useState(null);
   const [pointsAdjustment, setPointsAdjustment] = useState('');
 
+  // Estados del CRUD
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTargetClient, setEditTargetClient] = useState(null);
+
+  // Campos del formulario
+  const [formNombre, setFormNombre] = useState('');
+  const [formTelefono, setFormTelefono] = useState('');
+  const [formPuntos, setFormPuntos] = useState('0');
+
   // Estados Lealtad (Programa de puntos)
   const [pointsActive, setPointsActive] = useState(true);
   const [pointsRate, setPointsRate] = useState(1); // S/. 1 = 1 Punto
@@ -34,95 +44,181 @@ export default function DashboardClientes() {
   const [newRewardPoints, setNewRewardPoints] = useState('');
   const [showConfig, setShowConfig] = useState(false);
 
-  // Carga de clientes reales (o fallbacks)
+  // Carga de clientes reales
   const fetchClientes = useCallback(async () => {
     if (!activeRestaurant?.id) return;
     setLoading(true);
     try {
-      // Intentamos traer los clientes con sus compras recientes para calcular estadísticas simuladas/reales
-      const { data: ordersData, error } = await supabase
+      // 1. Traer todos los clientes de la base de datos
+      const { data: clientsData, error: clientsErr } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('restaurante_id', activeRestaurant.id)
+        .order('nombre', { ascending: true });
+
+      if (clientsErr) throw clientsErr;
+
+      // 2. Traer las órdenes para calcular consumos acumulados
+      const { data: ordersData, error: ordersErr } = await supabase
         .from('ordenes')
-        .select(`
-          total,
-          created_at,
-          clientes (id, nombre, telefono)
-        `)
+        .select('total, created_at, cliente_id')
         .eq('restaurante_id', activeRestaurant.id);
 
-      if (error) throw error;
+      if (ordersErr) throw ordersErr;
 
-      // Agrupar compras por cliente para calcular su ficha CRM
-      const customerMap = {};
+      // Agrupar compras por cliente
+      const ordersMap = {};
       ordersData?.forEach(o => {
-        if (!o.clientes) return;
-        const c = o.clientes;
-        if (!customerMap[c.id]) {
-          customerMap[c.id] = {
-            id: c.id,
-            nombre: c.nombre,
-            telefono: c.telefono,
+        if (!o.cliente_id) return;
+        if (!ordersMap[o.cliente_id]) {
+          ordersMap[o.cliente_id] = {
             totalSpent: 0,
             ordersCount: 0,
             lastOrderDate: null,
-            puntos: 0,
           };
         }
-        customerMap[c.id].totalSpent += parseFloat(o.total || 0);
-        customerMap[c.id].ordersCount += 1;
+        ordersMap[o.cliente_id].totalSpent += parseFloat(o.total || 0);
+        ordersMap[o.cliente_id].ordersCount += 1;
         const oDate = new Date(o.created_at);
-        if (!customerMap[c.id].lastOrderDate || oDate > new Date(customerMap[c.id].lastOrderDate)) {
-          customerMap[c.id].lastOrderDate = o.created_at;
+        if (!ordersMap[o.cliente_id].lastOrderDate || oDate > new Date(ordersMap[o.cliente_id].lastOrderDate)) {
+          ordersMap[o.cliente_id].lastOrderDate = o.created_at;
         }
       });
 
-      // Convertir a array y simular puntos y segmentos de lealtad
-      const clientsList = Object.values(customerMap).map(c => {
-        // Regla: S/. 1 = 1 Punto acumulado
-        const calculatedPoints = Math.round(c.totalSpent * pointsRate);
-        
+      // Mapear combinando la información
+      const clientsList = (clientsData || []).map(c => {
+        const stats = ordersMap[c.id] || {
+          totalSpent: 0,
+          ordersCount: 0,
+          lastOrderDate: null,
+        };
+
         // Determinar segmento
         let segment = 'nuevo';
-        const daysSinceLastOrder = c.lastOrderDate 
-          ? Math.floor((Date.now() - new Date(c.lastOrderDate)) / (1000 * 60 * 60 * 24))
+        const daysSinceLastOrder = stats.lastOrderDate 
+          ? Math.floor((Date.now() - new Date(stats.lastOrderDate)) / (1000 * 60 * 60 * 24))
           : 999;
 
-        if (c.ordersCount >= 5 || c.totalSpent >= 150) {
+        if (stats.ordersCount >= 5 || stats.totalSpent >= 150) {
           segment = 'vip';
         } else if (daysSinceLastOrder > 20) {
           segment = 'inactivo';
-        } else if (c.ordersCount > 1) {
-          segment = 'frecuente'; // subsegmento
+        } else if (stats.ordersCount > 1) {
+          segment = 'frecuente';
         }
 
         return {
-          ...c,
-          puntos: calculatedPoints,
+          id: c.id,
+          nombre: c.nombre,
+          telefono: c.telefono,
+          puntos: c.puntos || 0,
+          totalSpent: stats.totalSpent,
+          ordersCount: stats.ordersCount,
+          lastOrderDate: stats.lastOrderDate,
           segment,
         };
       });
 
-      // Si no hay datos en base de datos, usamos un mock corporativo para que no quede vacío
-      if (clientsList.length === 0) {
-        setClientes([
-          { id: '1', nombre: 'Valeria Torres', telefono: '987654321', totalSpent: 285.50, ordersCount: 8, lastOrderDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), puntos: 286, segment: 'vip' },
-          { id: '2', nombre: 'Mateo Sandoval', telefono: '912345678', totalSpent: 120.00, ordersCount: 3, lastOrderDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), puntos: 120, segment: 'nuevo' },
-          { id: '3', nombre: 'Camila Rivas', telefono: '999888777', totalSpent: 350.00, ordersCount: 12, lastOrderDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), puntos: 350, segment: 'vip' },
-          { id: '4', nombre: 'Esteban Ramos', telefono: '955444333', totalSpent: 45.00, ordersCount: 1, lastOrderDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(), puntos: 45, segment: 'inactivo' },
-          { id: '5', nombre: 'Lucía Benavides', telefono: '944111222', totalSpent: 90.00, ordersCount: 2, lastOrderDate: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), puntos: 90, segment: 'nuevo' },
-        ]);
-      } else {
-        setClientes(clientsList);
-      }
+      setClientes(clientsList);
     } catch (err) {
       console.error('Error fetching CRM clients:', err);
     } finally {
       setLoading(false);
     }
-  }, [activeRestaurant, pointsRate]);
+  }, [activeRestaurant]);
 
   useEffect(() => {
     fetchClientes();
   }, [fetchClientes]);
+
+  // Crear cliente (Agregar)
+  const handleAddCliente = async (e) => {
+    e.preventDefault();
+    if (!formNombre || !formTelefono || !activeRestaurant?.id) return;
+    try {
+      const nuevoCliente = {
+        nombre: formNombre,
+        telefono: formTelefono,
+        puntos: parseInt(formPuntos) || 0,
+        restaurante_id: activeRestaurant.id,
+      };
+      
+      const { error } = await supabase
+        .from('clientes')
+        .insert([nuevoCliente]);
+      
+      if (error) throw error;
+      
+      setFormNombre('');
+      setFormTelefono('');
+      setFormPuntos('0');
+      setIsAddModalOpen(false);
+      fetchClientes();
+    } catch (err) {
+      console.error('Error adding client:', err);
+      alert('Error al agregar cliente: ' + err.message);
+    }
+  };
+
+  // Editar cliente
+  const handleEditCliente = async (e) => {
+    e.preventDefault();
+    if (!editTargetClient || !formNombre || !formTelefono) return;
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({
+          nombre: formNombre,
+          telefono: formTelefono,
+          puntos: parseInt(formPuntos) || 0,
+        })
+        .eq('id', editTargetClient.id);
+
+      if (error) throw error;
+
+      setIsEditModalOpen(false);
+      setEditTargetClient(null);
+      setFormNombre('');
+      setFormTelefono('');
+      setFormPuntos('0');
+      
+      // Actualizar el cliente seleccionado si es el mismo
+      if (selectedCliente?.id === editTargetClient.id) {
+        setSelectedCliente(prev => ({
+          ...prev,
+          nombre: formNombre,
+          telefono: formTelefono,
+          puntos: parseInt(formPuntos) || 0,
+        }));
+      }
+      
+      fetchClientes();
+    } catch (err) {
+      console.error('Error updating client:', err);
+      alert('Error al actualizar cliente: ' + err.message);
+    }
+  };
+
+  // Eliminar cliente
+  const handleDeleteCliente = async (clienteId) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar a este cliente? Esto también eliminará su historial de órdenes de forma permanente.')) return;
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .delete()
+        .eq('id', clienteId);
+
+      if (error) throw error;
+
+      if (selectedCliente?.id === clienteId) {
+        setSelectedCliente(null);
+      }
+      fetchClientes();
+    } catch (err) {
+      console.error('Error deleting client:', err);
+      alert('Error al eliminar cliente: ' + err.message);
+    }
+  };
 
   // Agregar nuevo premio de canje
   const handleAddReward = (e) => {
@@ -143,25 +239,41 @@ export default function DashboardClientes() {
     setRewards(prev => prev.filter(item => item.id !== id));
   };
 
-  // Ajuste manual de puntos (simulado)
-  const handleAdjustPoints = (clienteId, operation) => {
+  // Ajuste manual de puntos (Persistido)
+  const handleAdjustPoints = async (clienteId, operation) => {
     const value = parseInt(pointsAdjustment);
     if (isNaN(value) || value <= 0) return;
 
-    setClientes(prev => prev.map(c => {
-      if (c.id === clienteId) {
-        const currentPoints = c.puntos || 0;
-        const newPoints = operation === 'add' ? currentPoints + value : Math.max(0, currentPoints - value);
-        return { ...c, puntos: newPoints };
-      }
-      return c;
-    }));
-    setPointsAdjustment('');
-    if (selectedCliente?.id === clienteId) {
-      setSelectedCliente(prev => ({
-        ...prev,
-        puntos: operation === 'add' ? (prev.puntos || 0) + value : Math.max(0, (prev.puntos || 0) - value)
+    const target = clientes.find(c => c.id === clienteId);
+    if (!target) return;
+
+    const currentPoints = target.puntos || 0;
+    const newPoints = operation === 'add' ? currentPoints + value : Math.max(0, currentPoints - value);
+
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({ puntos: newPoints })
+        .eq('id', clienteId);
+
+      if (error) throw error;
+
+      setClientes(prev => prev.map(c => {
+        if (c.id === clienteId) {
+          return { ...c, puntos: newPoints };
+        }
+        return c;
       }));
+      setPointsAdjustment('');
+      if (selectedCliente?.id === clienteId) {
+        setSelectedCliente(prev => ({
+          ...prev,
+          puntos: newPoints
+        }));
+      }
+    } catch (err) {
+      console.error('Error adjusting points:', err);
+      alert('Error al ajustar puntos: ' + err.message);
     }
   };
 
@@ -198,6 +310,33 @@ export default function DashboardClientes() {
             Administra tus contactos, consulta su historial de consumos y configura las reglas del club de puntos.
           </p>
         </div>
+        <button
+          onClick={() => {
+            setFormNombre('');
+            setFormTelefono('');
+            setFormPuntos('0');
+            setIsAddModalOpen(true);
+          }}
+          style={{
+            background: 'var(--color-primary)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 12,
+            padding: '10px 16px',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: '0 4px 12px rgba(64,145,108,0.2)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          <RiUserAddLine size={16} /> Agregar Cliente
+        </button>
       </div>
 
       {/* STATS CARDS */}
@@ -424,17 +563,63 @@ export default function DashboardClientes() {
         <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-surface-3)', borderRadius: 20, padding: 18 }}>
           {selectedCliente ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', margin: 0 }}>Ficha de Cliente</p>
-                <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, color: 'var(--color-on-surface)', marginTop: 4, marginBottom: 0 }}>{selectedCliente.nombre}</h3>
-                <span style={{
-                  display: 'inline-block', marginTop: 4,
-                  fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
-                  background: selectedCliente.segment === 'vip' ? 'rgba(216,160,32,0.1)' : selectedCliente.segment === 'inactivo' ? 'rgba(239,68,68,0.1)' : 'rgba(64,145,108,0.1)',
-                  color: selectedCliente.segment === 'vip' ? '#D8A020' : selectedCliente.segment === 'inactivo' ? '#EF4444' : 'var(--color-secondary)',
-                }}>
-                  {selectedCliente.segment === 'vip' ? '⭐ Cliente VIP Premium' : selectedCliente.segment === 'inactivo' ? '💤 Cliente Inactivo' : '🌱 Cliente Frecuente'}
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', margin: 0 }}>Ficha de Cliente</p>
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, color: 'var(--color-on-surface)', marginTop: 4, marginBottom: 0 }}>{selectedCliente.nombre}</h3>
+                  <span style={{
+                    display: 'inline-block', marginTop: 4,
+                    fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
+                    background: selectedCliente.segment === 'vip' ? 'rgba(216,160,32,0.1)' : selectedCliente.segment === 'inactivo' ? 'rgba(239,68,68,0.1)' : 'rgba(64,145,108,0.1)',
+                    color: selectedCliente.segment === 'vip' ? '#D8A020' : selectedCliente.segment === 'inactivo' ? '#EF4444' : 'var(--color-secondary)',
+                  }}>
+                    {selectedCliente.segment === 'vip' ? '⭐ Cliente VIP Premium' : selectedCliente.segment === 'inactivo' ? '💤 Cliente Inactivo' : '🌱 Cliente Frecuente'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={() => {
+                      setEditTargetClient(selectedCliente);
+                      setFormNombre(selectedCliente.nombre);
+                      setFormTelefono(selectedCliente.telefono);
+                      setFormPuntos(String(selectedCliente.puntos));
+                      setIsEditModalOpen(true);
+                    }}
+                    style={{
+                      background: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-surface-3)',
+                      borderRadius: 10,
+                      padding: 8,
+                      cursor: 'pointer',
+                      color: 'var(--color-on-surface)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                    title="Editar Cliente"
+                  >
+                    <RiEditLine size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCliente(selectedCliente.id)}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      borderRadius: 10,
+                      padding: 8,
+                      cursor: 'pointer',
+                      color: '#EF4444',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                    title="Eliminar Cliente"
+                  >
+                    <RiDeleteBinLine size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Info de contacto y WhatsApp */}
@@ -511,6 +696,223 @@ export default function DashboardClientes() {
         </div>
 
       </div>
+
+      {/* MODAL: AGREGAR CLIENTE */}
+      {isAddModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            background: 'var(--color-surface)',
+            border: '1.5px solid var(--color-surface-3)',
+            borderRadius: 24,
+            padding: 24,
+            width: '100%',
+            maxWidth: 400,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, margin: 0, color: 'var(--color-on-surface)' }}>
+              ➕ Registrar Nuevo Cliente
+            </h3>
+            <form onSubmit={handleAddCliente} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted)' }}>Nombre Completo</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Juan Pérez"
+                  value={formNombre}
+                  onChange={e => setFormNombre(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '10px 12px', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted)' }}>Número de Teléfono</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="Ej. 987654321"
+                  value={formTelefono}
+                  onChange={e => setFormTelefono(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '10px 12px', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted)' }}>Puntos Iniciales</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  min="0"
+                  value={formPuntos}
+                  onChange={e => setFormPuntos(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '10px 12px', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  style={{
+                    flex: 1,
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-surface-3)',
+                    color: 'var(--color-on-surface)',
+                    borderRadius: 12,
+                    padding: '10px 0',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    background: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 12,
+                    padding: '10px 0',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR CLIENTE */}
+      {isEditModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            background: 'var(--color-surface)',
+            border: '1.5px solid var(--color-surface-3)',
+            borderRadius: 24,
+            padding: 24,
+            width: '100%',
+            maxWidth: 400,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, margin: 0, color: 'var(--color-on-surface)' }}>
+              ✏️ Editar Información de Cliente
+            </h3>
+            <form onSubmit={handleEditCliente} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted)' }}>Nombre Completo</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Juan Pérez"
+                  value={formNombre}
+                  onChange={e => setFormNombre(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '10px 12px', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted)' }}>Número de Teléfono</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="Ej. 987654321"
+                  value={formTelefono}
+                  onChange={e => setFormTelefono(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '10px 12px', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted)' }}>Puntos Acumulados</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formPuntos}
+                  onChange={e => setFormPuntos(e.target.value)}
+                  className="input-field"
+                  style={{ padding: '10px 12px', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditTargetClient(null);
+                  }}
+                  style={{
+                    flex: 1,
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-surface-3)',
+                    color: 'var(--color-on-surface)',
+                    borderRadius: 12,
+                    padding: '10px 0',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    background: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 12,
+                    padding: '10px 0',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Actualizar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
