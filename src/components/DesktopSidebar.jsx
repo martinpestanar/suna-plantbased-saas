@@ -1,14 +1,17 @@
 import { GrAd } from 'react-icons/gr';
+import { useAuth } from '../router.jsx';
 
 /**
  * DesktopSidebar — Panel lateral que solo aparece en escritorio (≥ 900px)
  */
-export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onLogout }) {
+export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onLogout, allowedModules: propAllowedModules }) {
+  const { allowedModules: authAllowedModules } = useAuth();
+  const allowedModules = propAllowedModules || authAllowedModules;
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
 
-  const menuItems = [
+  const rawMenuItems = [
     { id: 'inicio',     icon: '🏠', label: 'Inicio' },
     { id: 'ordenes',    icon: '🔔', label: 'Órdenes Live' },
     { id: 'pedidos',    icon: '👨‍🍳', label: 'Pedidos' },
@@ -20,8 +23,13 @@ export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onL
     { id: 'premios',    icon: '🎁', label: 'Premios & Canjes' },
     { id: 'salon',      icon: '🪑', label: 'Pedidos Salón' },
     { id: 'delivery',   icon: '🛵', label: 'Delivery' },
-    { id: 'metricas',   icon: '📊', label: 'Métricas' },
+    { id: 'restaurante',icon: '🏪', label: 'Mi Restaurante' },
   ];
+
+  const menuItems = Array.isArray(allowedModules) && allowedModules.length > 0
+    ? rawMenuItems.filter(item => allowedModules.includes(item.id) || item.id === 'ordenes')
+    : rawMenuItems;
+
 
   return (
     <aside style={{

@@ -18,37 +18,48 @@ export function parsePath() {
   const p = window.location.pathname;
   const parts = p.split('/').filter(Boolean);
   
+  // Extraer parámetros de búsqueda URL (ej: ?mesa=4&canal=salon&token=ABC12345&telefono=51981482289)
+  const searchParams = new URLSearchParams(window.location.search);
+  const queryPhone = searchParams.get('telefono') || searchParams.get('clientIdentifier') || searchParams.get('phone') || null;
+  
+  const queryParams = {
+    mesa: searchParams.get('mesa') || null,
+    canal: searchParams.get('canal') || null,
+    token: searchParams.get('token') || null,
+    telefono: queryPhone,
+  };
+  
   if (parts.length === 0) {
-    return { slug: null, route: '/', clientIdentifier: null };
+    return { slug: null, route: '/', clientIdentifier: queryPhone, queryParams };
   }
   
   // Public/static global routes
-  if (['login', 'onboarding'].includes(parts[0])) {
-    return { slug: null, route: '/' + parts[0], clientIdentifier: null };
+  if (['login', 'onboarding', 'superadmin'].includes(parts[0])) {
+    return { slug: null, route: '/' + parts[0], clientIdentifier: null, queryParams };
   }
   
-  const knownSubRoutes = ['dashboard', 'ordenar', 'pedidos', 'carta', 'finanzas'];
+  const knownSubRoutes = ['dashboard', 'ordenar', 'pedidos', 'carta', 'finanzas', 'restaurante', 'inventario', 'marketing', 'clientes', 'premios', 'salon', 'delivery', 'modulos'];
   
   // If the first part itself is a known route (e.g., /dashboard/marketing or /dashboard)
   if (knownSubRoutes.includes(parts[0])) {
     const subRoutePath = '/' + parts.join('/');
-    return { slug: null, route: subRoutePath, clientIdentifier: null };
+    return { slug: null, route: subRoutePath, clientIdentifier: queryPhone, queryParams };
   }
   
   // Case 1: /[restaurantSlug]/ordenar/[clientIdentifier]
   if (parts.length >= 3 && parts[1] === 'ordenar') {
-    return { slug: parts[0], route: '/ordenar', clientIdentifier: parts[2] };
+    return { slug: parts[0], route: '/ordenar', clientIdentifier: parts[2] || queryPhone, queryParams };
   }
   
   // Case 2: /[restaurantSlug]/[route]
   if (parts.length >= 2 && knownSubRoutes.includes(parts[1])) {
     const subRoutePath = '/' + parts.slice(1).join('/');
-    return { slug: parts[0], route: subRoutePath, clientIdentifier: null };
+    return { slug: parts[0], route: subRoutePath, clientIdentifier: queryPhone, queryParams };
   }
   
   // Case 3: /[restaurantSlug]
   // Treat as /ordenar by default
-  return { slug: parts[0], route: '/ordenar', clientIdentifier: null };
+  return { slug: parts[0], route: '/ordenar', clientIdentifier: queryPhone, queryParams };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -233,10 +244,52 @@ export function AppProvider({ children }) {
     navigate(ROUTES.LANDING);
   }, [navigate]);
 
-  const routerValue = { route, navigate, tenantSlug, clientIdentifier };
+  /* ── Carga y suscripción en tiempo real de Módulos Habilitados ── */
+  const [allowedModules, setAllowedModules] = useState(['inicio', 'ordenes', 'pedidos', 'carta', 'inventario', 'finanzas', 'marketing', 'clientes', 'premios', 'salon', 'delivery', 'restaurante']);
+
+  useEffect(() => {
+    if (!activeRestaurant?.id) return;
+
+    const ALL_KEYS = ['inicio', 'ordenes', 'pedidos', 'carta', 'inventario', 'finanzas', 'marketing', 'clientes', 'premios', 'salon', 'delivery', 'restaurante'];
+
+    const fetchAllowedModules = async () => {
+      try {
+        const { data } = await supabase
+          .from('restaurante_modulos')
+          .select('*')
+          .eq('restaurante_id', activeRestaurant.id);
+
+        if (data && data.length > 0) {
+          const disabledKeys = data.filter(m => m.activo === false).map(m => m.modulo);
+          const filtered = ALL_KEYS.filter(k => !disabledKeys.includes(k));
+          setAllowedModules(filtered);
+        } else {
+          setAllowedModules(ALL_KEYS);
+        }
+      } catch (err) {
+        setAllowedModules(ALL_KEYS);
+      }
+    };
+
+    fetchAllowedModules();
+
+    const channel = supabase.channel(`modules_${activeRestaurant.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurante_modulos', filter: `restaurante_id=eq.${activeRestaurant.id}` }, () => {
+        fetchAllowedModules();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeRestaurant]);
+
+  const { queryParams } = urlInfo;
+  const routerValue = { route, navigate, tenantSlug, clientIdentifier, queryParams };
   const authValue   = {
     session, authLoading, logout, loginAsDev,
     restaurants, activeRestaurant, selectRestaurant, resLoading, fetchRestaurants,
+    allowedModules,
   };
   const themeValue  = { theme, toggleTheme };
 

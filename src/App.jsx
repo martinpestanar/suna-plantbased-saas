@@ -82,11 +82,38 @@ const FALLBACK_ITEMS = [
 /* ─── COMPONENTE PRINCIPAL ─── */
 export default function App() {
   const { theme } = useTheme();
-  const { tenantSlug, clientIdentifier } = useRouter();
+  const { tenantSlug, clientIdentifier, queryParams } = useRouter();
+  const isTableMode = queryParams?.canal === 'salon' && Boolean(queryParams?.mesa);
+  const tableNumber = queryParams?.mesa || null;
+  const tableToken  = queryParams?.token || null;
+  const [tableValidation, setTableValidation] = useState(null);
+
+  useEffect(() => {
+    if (isTableMode && tenantSlug && tableNumber) {
+      (async () => {
+        try {
+          const { data } = await supabase.rpc('validar_qr_mesa', {
+            p_restaurante_slug: tenantSlug,
+            p_numero_mesa: String(tableNumber),
+            p_token: tableToken || 'bypass'
+          });
+          if (data) setTableValidation(data);
+        } catch (e) {
+          console.error('Error al validar QR de mesa:', e);
+        }
+      })();
+    }
+  }, [isTableMode, tenantSlug, tableNumber, tableToken]);
+
   // ── Estado general ──
   const [tab, setTab]         = useState(clientIdentifier ? 'club' : 'menu');  // Iniciar en club si hay clientIdentifier
   const [catId, setCatId]     = useState('all');
   const [query, setQuery]     = useState('');
+  const [activePromoSlide, setActivePromoSlide] = useState(0);
+  const [promosOpen, setPromosOpen]             = useState(false);
+  const [waCompleted, setWaCompleted]           = useState(() => Boolean(localStorage.getItem('wa_completed_mesa')));
+  const [googleCompleted, setGoogleCompleted]   = useState(false);
+  const [clubSubTab, setClubSubTab]             = useState('catalogo'); // Default 'catalogo' para antojar al usuario con los premios
 
   // ── Estados Club Lealtad ──
   const [clientInfo, setClientInfo] = useState(null);
@@ -173,7 +200,7 @@ export default function App() {
   const [sheetOpen, setSheetOpen]   = useState(false);
   const [name, setName]             = useState('');
   const [phone, setPhone]           = useState('');
-  const [delivery, setDelivery]     = useState('recojo');
+  const [delivery, setDelivery]     = useState(queryParams?.canal === 'salon' ? 'salon' : 'recojo');
   const [payMethodCheckout, setPayMethodCheckout] = useState('yape_plin'); // 'yape_plin' | 'efectivo'
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult]         = useState(null);  // { orden_id, total, metodo_pago }
@@ -1139,6 +1166,215 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Header Slim de Modo Mesa Salón */}
+              {isTableMode && (
+                <div style={{ padding: '0 20px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Barra Ultra-Slim de Mesa */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #1B4332 0%, #081C15 100%)',
+                    color: '#FCFBF9', padding: '8px 14px', borderRadius: 14,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    boxShadow: '0 4px 14px rgba(27,67,50,0.15)', border: '1px solid #40916C'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>🍽️</span>
+                      <span style={{ fontSize: 12, fontWeight: 900, color: '#D8F3DC' }}>
+                        Mesa {tableNumber} — Consumo en Salón
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 10, color: '#A3B18A', fontWeight: 800 }}>
+                      ✓ Directo a Cocina
+                    </span>
+                  </div>
+
+                  {/* ACORDEÓN DESPLEGABLE DE BENEFICIOS (SLIM & DESECHABLE) */}
+                  {(() => {
+                    const availableSlides = [];
+
+                    // Slide WhatsApp (Solo si no ha sido completado/descartado)
+                    if (!waCompleted) {
+                      availableSlides.push(
+                        <div key="slide-wa" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 18 }}>🎁</span>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#92400E' }}>
+                                ¿Quieres 10% de descuento en tu Mesa {tableNumber}?
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setWaCompleted(true);
+                                localStorage.setItem('wa_completed_mesa', 'true');
+                              }}
+                              style={{ background: 'none', border: 'none', color: '#92400E', fontSize: 11, cursor: 'pointer', fontWeight: 700 }}
+                              title="Descartar"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <p style={{ fontSize: 10.5, color: '#B45309', fontWeight: 700, margin: 0 }}>
+                            Valida tu número por WhatsApp en 1 segundo y acumula puntos.
+                          </p>
+                          <a
+                            href={`https://wa.me/${restaurant?.telefono?.replace(/[^0-9]/g, '') || ''}?text=${encodeURIComponent(`Hola! Estoy en la Mesa ${tableNumber} de ${restaurant?.nombre || 'Suna'} y quiero mi 10% de descuento (Token: ${tableToken || 'SALON'})`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => {
+                              setWaCompleted(true);
+                              localStorage.setItem('wa_completed_mesa', 'true');
+                            }}
+                            style={{
+                              background: '#25D366', color: '#fff', textDecoration: 'none',
+                              borderRadius: 10, padding: '8px 0', textAlign: 'center',
+                              fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', gap: 6, boxShadow: '0 3px 10px rgba(37,211,102,0.25)'
+                            }}
+                          >
+                            <Icon.whatsapp /> Validar mi 10% de Descuento por WhatsApp
+                          </a>
+                        </div>
+                      );
+                    }
+
+                    // Slide Google Review (Solo si la campaña está activa y no ha sido descartada)
+                    if (restaurant?.google_review_activo !== false && !googleCompleted) {
+                      availableSlides.push(
+                        <div key="slide-google" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 18 }}>⭐</span>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#1E40AF' }}>
+                                {restaurant?.google_review_mensaje || '¡Déjanos tu reseña en Google!'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => setGoogleCompleted(true)}
+                              style={{ background: 'none', border: 'none', color: '#1E40AF', fontSize: 11, cursor: 'pointer', fontWeight: 700 }}
+                              title="Descartar"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <span style={{ fontSize: 10.5, color: '#1D4ED8', fontWeight: 700 }}>
+                            {restaurant?.google_review_tipo_premio === 'puntos'
+                              ? `🎁 Premio: ${restaurant?.google_review_puntos || 100} puntos sumados a tu Club.`
+                              : `🎁 Premio: ${restaurant?.google_review_regalo_nombre || 'Bebida Gratis de la Casa'}.`}
+                          </span>
+
+                          <div style={{
+                            background: 'rgba(255,255,255,0.7)', borderRadius: 8, padding: '6px 8px',
+                            display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid #BFDBFE'
+                          }}>
+                            <p style={{ fontSize: 9.5, fontWeight: 800, color: '#1E3A8A', margin: 0 }}>
+                              1️⃣ Escribe tu opinión de 5 estrellas en Google.
+                            </p>
+                            <p style={{ fontSize: 9.5, fontWeight: 800, color: '#1E3A8A', margin: 0 }}>
+                              2️⃣ <strong>Muestra la reseña en caja o a tu mesero</strong> para reclamar tu premio.
+                            </p>
+                          </div>
+
+                          <a
+                            href={restaurant?.google_maps_url || 'https://maps.google.com'}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => setGoogleCompleted(true)}
+                            style={{
+                              background: '#2563EB', color: '#fff', textDecoration: 'none',
+                              borderRadius: 10, padding: '8px 0', textAlign: 'center',
+                              fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', gap: 6, boxShadow: '0 3px 10px rgba(37,99,235,0.25)'
+                            }}
+                          >
+                            ⭐ Dejar Reseña en Google Maps
+                          </a>
+                        </div>
+                      );
+                    }
+
+                    if (availableSlides.length === 0) return null;
+
+                    // Si está cerrado, mostrar la barra comprimida (Dropdown trigger)
+                    if (!promosOpen) {
+                      return (
+                        <button
+                          onClick={() => setPromosOpen(true)}
+                          style={{
+                            background: 'linear-gradient(135deg, #FFF9EB 0%, #EFF6FF 100%)',
+                            border: '1px solid #F59E0B', borderRadius: 12, padding: '8px 14px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', width: '100%'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 14 }}>🎁</span>
+                            <span style={{ fontSize: 11.5, fontWeight: 900, color: '#92400E' }}>
+                              Ver {availableSlides.length} Beneficio{availableSlides.length > 1 ? 's' : ''} disponible{availableSlides.length > 1 ? 's' : ''} en Mesa {tableNumber}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 900, color: '#92400E' }}>▼ Desplegar</span>
+                        </button>
+                      );
+                    }
+
+                    const safeActiveSlide = activePromoSlide % availableSlides.length;
+                    const containerStyle = safeActiveSlide === 0 
+                      ? { background: 'linear-gradient(135deg, #FFF9EB 0%, #FEF3D6 100%)', border: '1.5px solid #F59E0B', boxShadow: '0 4px 16px rgba(245,158,11,0.12)' }
+                      : { background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '1.5px solid #3B82F6', boxShadow: '0 4px 16px rgba(59,130,246,0.12)' };
+
+                    return (
+                      <div style={{
+                        ...containerStyle,
+                        borderRadius: 18, padding: '12px 14px',
+                        display: 'flex', flexDirection: 'column', gap: 8,
+                        position: 'relative', transition: 'all 300ms ease'
+                      }}>
+                        {/* Cabecera del Acordeón para Contraer */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 900, color: '#8A8070', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Beneficio {safeActiveSlide + 1} de {availableSlides.length}
+                          </span>
+                          <button
+                            onClick={() => setPromosOpen(false)}
+                            style={{ background: 'none', border: 'none', fontSize: 10.5, fontWeight: 900, color: '#8A8070', cursor: 'pointer' }}
+                          >
+                            ▲ Plegar
+                          </button>
+                        </div>
+
+                        {/* Slide Activo */}
+                        {availableSlides[safeActiveSlide]}
+
+                        {/* Dots si hay más de 1 slide */}
+                        {availableSlides.length > 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            {availableSlides.map((_, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setActivePromoSlide(idx)}
+                                style={{
+                                  width: idx === safeActiveSlide ? 16 : 6,
+                                  height: 6,
+                                  borderRadius: 3,
+                                  background: idx === safeActiveSlide 
+                                    ? (safeActiveSlide === 0 ? '#D97706' : '#2563EB')
+                                    : 'rgba(0,0,0,0.2)',
+                                  border: 'none',
+                                  padding: 0,
+                                  cursor: 'pointer',
+                                  transition: 'all 200ms ease'
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+
               {/* Barra de búsqueda (cuando tab=buscar) */}
               {tab === 'buscar' && (
                 <div style={{ padding:'0 20px 14px' }}>
@@ -1197,158 +1433,223 @@ export default function App() {
                 </div>
               ) : tab === 'club' ? (
                 /* Club Lealtad View */
-                <div className="loyalty-container" style={{ padding:'16px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:18 }}>
-                  {!clientInfo ? (
-                    /* PHONE INPUT FORM */
-                    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 24, padding: 24, textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.05)' }}>
-                      <span style={{ fontSize: 44 }}>🥑</span>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, marginTop: 12, marginBottom: 6 }}>Club de Puntos SUNA</h3>
-                      <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 20 }}>Consulta tus puntos acumulados, premios listos para canjear e historial de pedidos ingresando tu celular.</p>
-                      
+                <div className="loyalty-container" style={{ padding:'16px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:16 }}>
+                  
+                  {/* SUBPESTAÑAS DE NAVEGACIÓN: CATÁLOGO VS MI CUENTA */}
+                  <div className="segmented" style={{ background: 'var(--color-surface-2)', padding: 4, borderRadius: 16 }}>
+                    <button
+                      type="button"
+                      onClick={() => setClubSubTab('catalogo')}
+                      className={`seg-btn ${clubSubTab==='catalogo'?'active':'inactive'}`}
+                      style={{ borderRadius: 12, padding: '10px 0', fontWeight: 900, fontSize: 12 }}
+                    >
+                      🎁 Catálogo de Premios
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClubSubTab('mi_cuenta')}
+                      className={`seg-btn ${clubSubTab==='mi_cuenta'?'active':'inactive'}`}
+                      style={{ borderRadius: 12, padding: '10px 0', fontWeight: 900, fontSize: 12 }}
+                    >
+                      👤 Mis Puntos {clientInfo ? `(${clientInfo.puntos} pts)` : ''}
+                    </button>
+                  </div>
+
+                  {/* VISTA 1: CATÁLOGO DE PREMIOS */}
+                  {clubSubTab === 'catalogo' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ background: 'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)', borderRadius: 20, padding: '18px 20px', color: '#fff', boxShadow: '0 8px 24px rgba(27,67,50,0.15)' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          🏆 Premios & Canjes Exclusivos
+                        </h3>
+                        <p style={{ fontSize: 11.5, opacity: 0.9, margin: '6px 0 0 0', lineHeight: 1.4 }}>
+                          ¡Pide desde tu mesa o delivery y acumula puntos automáticos! Canjea tus platos, bebidas y postres favoritos gratis.
+                        </p>
+                      </div>
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <input
-                          type="tel"
-                          placeholder="Número de WhatsApp (ej: 51987654321)"
-                          value={inputPhone}
-                          onChange={e => setInputPhone(e.target.value)}
-                          style={{
-                            width: '100%', padding: '14px 16px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)',
-                            borderRadius: 14, color: 'var(--color-on-surface)', fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none'
-                          }}
-                        />
-                        <button
-                          onClick={() => fetchClientLoyalty(inputPhone)}
-                          disabled={loyaltyLoading || !inputPhone.trim()}
-                          style={{
-                            width: '100%', padding: '14px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 14,
-                            fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-                          }}
-                        >
-                          {loyaltyLoading ? 'Cargando...' : '🔍 Buscar Mis Puntos'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* IDENTIFIED CLIENT */
-                    <>
-                      {/* CARD CLUB LEALTAD */}
-                      <div style={{
-                        background: 'linear-gradient(135deg, var(--color-primary) 0%, #1b4332 100%)',
-                        borderRadius: 24, padding: 24, color: '#fff', position: 'relative', overflow: 'hidden',
-                        boxShadow: '0 12px 24px rgba(27,67,50,0.15)'
-                      }}>
-                        <div style={{ position: 'absolute', right: -20, bottom: -20, fontSize: 120, opacity: 0.15, transform: 'rotate(-15deg)', pointerEvents: 'none' }}>🥑</div>
-                        <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.8, margin: 0 }}>Tarjeta de Lealtad</p>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, marginTop: 4, marginBottom: 16 }}>{clientInfo.nombre}</h3>
-                        
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                          <div>
-                            <p style={{ fontSize: 10, opacity: 0.8, margin: 0 }}>Saldo Disponible</p>
-                            <p style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              🪙 {clientInfo.puntos} <span style={{ fontSize: 14, fontWeight: 700, opacity: 0.9 }}>pts</span>
-                            </p>
+                        {(!premiosClub || premiosClub.length === 0) ? (
+                          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 18, padding: '30px 20px', textAlign: 'center', color: 'var(--color-muted)' }}>
+                            <span style={{ fontSize: 36 }}>🎁</span>
+                            <p style={{ fontSize: 13, fontWeight: 700, margin: '10px 0 0' }}>Cargando catálogo de premios del restaurante...</p>
                           </div>
-                          <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: 12, fontWeight: 700 }}>
-                            📞 {clientInfo.telefono}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* PROGRESO GAMIFICADO */}
-                      {renderProgressBar(clientInfo.puntos)}
-
-                      {/* PREMIOS Y CANJES */}
-                      <div>
-                        <h4 style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          🎁 Canjear Mis Premios
-                        </h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {(!premiosClub || premiosClub.length === 0) ? (
-                            <p style={{ fontSize: 12, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0' }}>No hay premios disponibles por ahora.</p>
-                          ) : premiosClub.map(reward => {
-                            const canRedeem = clientInfo.puntos >= reward.costo_puntos;
-                            return (
-                              <div key={reward.id} style={{
-                                background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 18, padding: 14,
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12
-                              }}>
-                                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                                  <span style={{ fontSize: 24, width: 40, height: 40, borderRadius: 12, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {reward.emoji || '🎁'}
-                                  </span>
-                                  <div>
-                                    <p style={{ fontSize: 13, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>{reward.nombre}</p>
-                                    <p style={{ fontSize: 10, color: 'var(--color-muted)', margin: '2px 0 0 0' }}>{reward.descripcion}</p>
-                                  </div>
+                        ) : premiosClub.map(reward => {
+                          const canRedeem = clientInfo ? clientInfo.puntos >= reward.costo_puntos : false;
+                          return (
+                            <div key={reward.id} style={{
+                              background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 18, padding: 14,
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                              boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
+                            }}>
+                              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                                <span style={{ fontSize: 26, width: 44, height: 44, borderRadius: 14, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {reward.emoji || '🎁'}
+                                </span>
+                                <div>
+                                  <p style={{ fontSize: 13, fontWeight: 900, margin: 0, color: 'var(--color-on-surface)' }}>{reward.nombre}</p>
+                                  <p style={{ fontSize: 10.5, color: 'var(--color-muted)', margin: '2px 0 0 0' }}>{reward.descripcion || 'Premio exclusivo del Club Suna'}</p>
                                 </div>
-                                <button
-                                  onClick={() => handleRedeemReward(reward.costo_puntos, reward.nombre)}
-                                  disabled={!canRedeem}
-                                  style={{
-                                    padding: '8px 12px', background: canRedeem ? 'var(--color-secondary)' : 'var(--color-surface-2)',
-                                    color: canRedeem ? 'var(--color-on-secondary)' : 'var(--color-muted)', border: 'none', borderRadius: 12,
-                                    fontSize: 11, fontWeight: 900, cursor: canRedeem ? 'pointer' : 'default', transition: 'all 0.2s', whiteSpace: 'nowrap'
-                                  }}
-                                >
-                                  {reward.costo_puntos} pts
-                                </button>
                               </div>
-                            );
-                          })}
+                              <button
+                                onClick={() => {
+                                  if (!clientInfo) {
+                                    setClubSubTab('mi_cuenta');
+                                  } else {
+                                    handleRedeemReward(reward.costo_puntos, reward.nombre);
+                                  }
+                                }}
+                                style={{
+                                  padding: '8px 14px', background: canRedeem ? 'var(--color-secondary)' : 'var(--color-surface-2)',
+                                  color: canRedeem ? '#ffffff' : 'var(--color-primary)', border: 'none', borderRadius: 12,
+                                  fontSize: 11.5, fontWeight: 900, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {clientInfo ? `${reward.costo_puntos} pts` : `🔑 ${reward.costo_puntos} pts`}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {!clientInfo && (
+                        <div style={{ background: '#FFF9EB', border: '1.5px dashed #F59E0B', borderRadius: 18, padding: 16, textAlign: 'center', marginTop: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 900, color: '#92400E', margin: 0 }}>
+                            ¿Quieres canjear estos premios?
+                          </p>
+                          <p style={{ fontSize: 11, color: '#B45309', margin: '4px 0 12px 0' }}>
+                            Ingresa tu WhatsApp en 1 segundo para vincular tus puntos de consumo en mesa.
+                          </p>
+                          <button
+                            onClick={() => setClubSubTab('mi_cuenta')}
+                            style={{ background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 11.5, fontWeight: 900, cursor: 'pointer' }}
+                          >
+                            🚀 Ingresar mi WhatsApp
+                          </button>
                         </div>
-                      </div>
+                      )}
+                    </div>
+                  )}
 
-                      {/* HISTORIAL DE PEDIDOS */}
-                      <div>
-                        <h4 style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          📋 Mis Pedidos Recientes
-                        </h4>
-                        {clientOrders.length === 0 ? (
-                          <p style={{ fontSize: 12, color: 'var(--color-muted)', textAlign: 'center', padding: '20px 0' }}>Aún no tienes pedidos registrados.</p>
-                        ) : (
+                  {/* VISTA 2: MIS PUNTOS & SALDO */}
+                  {clubSubTab === 'mi_cuenta' && (
+                    <>
+                      {!clientInfo ? (
+                        /* COPY DINÁMICO DE CAPTACIÓN */
+                        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 24, padding: 24, textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.05)' }}>
+                          <span style={{ fontSize: 44 }}>🥑</span>
+                          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, marginTop: 12, marginBottom: 6 }}>
+                            ¡Únete al Club Premios SUNA!
+                          </h3>
+                          <p style={{ fontSize: 12.5, color: 'var(--color-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+                            Si eres nuevo o comensal habitual, <strong>ingresa tu número de WhatsApp</strong> para acumular puntos automáticos en cada visita, consultar tu nivel y ganar premios gratis.
+                          </p>
+                          
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {clientOrders.map(order => {
-                              const date = new Date(order.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
-                              let statusLabel = 'Recibido';
-                              let statusBg = 'var(--color-surface-2)';
-                              let statusColor = 'var(--color-muted)';
-                              if (order.estado === 'en_cocina' || order.estado === 'preparando') { statusLabel = 'Preparando'; statusBg = '#FEF3C7'; statusColor = '#D97706'; }
-                              else if (order.estado === 'listo' || order.estado === 'listo_para_recojo') { statusLabel = 'Listo'; statusBg = '#D1FAE5'; statusColor = '#10B981'; }
-                              else if (order.estado === 'en_camino') { statusLabel = 'En Delivery'; statusBg = '#E0F2FE'; statusColor = '#0284C7'; }
-                              else if (order.estado === 'entregado') { statusLabel = 'Entregado'; statusBg = '#D1FAE5'; statusColor = '#10B981'; }
-                              else if (order.estado === 'cancelado') { statusLabel = 'Cancelado'; statusBg = '#FEE2E2'; statusColor = '#EF4444'; }
-
-                              return (
-                                <div key={order.id} style={{
-                                  background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 16, padding: 14,
-                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                                }}>
-                                  <div>
-                                    <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>Pedido #{order.id.split('-')[0]}</p>
-                                    <p style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2, margin: 0 }}>{date} • S/. {parseFloat(order.total).toFixed(2)}</p>
-                                  </div>
-                                  <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 8, background: statusBg, color: statusColor }}>
-                                    {statusLabel}
-                                  </span>
-                                </div>
-                              );
-                            })}
+                            <input
+                              type="tel"
+                              placeholder="Número de WhatsApp (ej: 51987654321)"
+                              value={inputPhone}
+                              onChange={e => setInputPhone(e.target.value)}
+                              style={{
+                                width: '100%', padding: '14px 16px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)',
+                                borderRadius: 14, color: 'var(--color-on-surface)', fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none'
+                              }}
+                            />
+                            <button
+                              onClick={() => fetchClientLoyalty(inputPhone)}
+                              disabled={loyaltyLoading || !inputPhone.trim()}
+                              style={{
+                                width: '100%', padding: '14px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 14,
+                                fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                              }}
+                            >
+                              {loyaltyLoading ? 'Cargando...' : '✨ Entrar a Mi Cuenta de Premios'}
+                            </button>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        /* CLIENTE IDENTIFICADO */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                          {/* CARD CLUB LEALTAD */}
+                          <div style={{
+                            background: 'linear-gradient(135deg, var(--color-primary) 0%, #1b4332 100%)',
+                            borderRadius: 24, padding: 24, color: '#fff', position: 'relative', overflow: 'hidden',
+                            boxShadow: '0 12px 24px rgba(27,67,50,0.15)'
+                          }}>
+                            <div style={{ position: 'absolute', right: -20, bottom: -20, fontSize: 120, opacity: 0.15, transform: 'rotate(-15deg)', pointerEvents: 'none' }}>🥑</div>
+                            <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.8, margin: 0 }}>Tarjeta de Lealtad</p>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 900, marginTop: 4, marginBottom: 16 }}>{clientInfo.nombre}</h3>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                              <div>
+                                <p style={{ fontSize: 10, opacity: 0.8, margin: 0 }}>Saldo Disponible</p>
+                                <p style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 900, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  🪙 {clientInfo.puntos} <span style={{ fontSize: 14, fontWeight: 700, opacity: 0.9 }}>pts</span>
+                                </p>
+                              </div>
+                              <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: 12, fontWeight: 700 }}>
+                                📞 {clientInfo.telefono}
+                              </span>
+                            </div>
+                          </div>
 
-                      {/* SALIR DEL PANEL */}
-                      <button
-                        onClick={() => { setClientInfo(null); setInputPhone(''); }}
-                        style={{
-                          width: '100%', padding: '10px', background: 'transparent', color: 'var(--color-danger)', border: '1px solid rgba(239, 68, 68, 0.2)',
-                          borderRadius: 14, fontSize: 12, fontWeight: 800, cursor: 'pointer', marginTop: 10
-                        }}
-                      >
-                        Cerrar Sesión del Club
-                      </button>
+                          {/* PROGRESO GAMIFICADO */}
+                          {renderProgressBar(clientInfo.puntos)}
+
+                          {/* HISTORIAL DE PEDIDOS */}
+                          <div>
+                            <h4 style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 900, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              📋 Mis Pedidos Recientes
+                            </h4>
+                            {clientOrders.length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--color-muted)', textAlign: 'center', padding: '20px 0' }}>Aún no tienes pedidos registrados.</p>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {clientOrders.map(order => {
+                                  const date = new Date(order.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+                                  let statusLabel = 'Recibido';
+                                  let statusBg = 'var(--color-surface-2)';
+                                  let statusColor = 'var(--color-muted)';
+                                  if (order.estado === 'en_cocina' || order.estado === 'preparando') { statusLabel = 'Preparando'; statusBg = '#FEF3C7'; statusColor = '#D97706'; }
+                                  else if (order.estado === 'listo' || order.estado === 'listo_para_recojo') { statusLabel = 'Listo'; statusBg = '#D1FAE5'; statusColor = '#10B981'; }
+                                  else if (order.estado === 'en_camino') { statusLabel = 'En Delivery'; statusBg = '#E0F2FE'; statusColor = '#0284C7'; }
+                                  else if (order.estado === 'entregado') { statusLabel = 'Entregado'; statusBg = '#D1FAE5'; statusColor = '#10B981'; }
+                                  else if (order.estado === 'cancelado') { statusLabel = 'Cancelado'; statusBg = '#FEE2E2'; statusColor = '#EF4444'; }
+
+                                  return (
+                                    <div key={order.id} style={{
+                                      background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)', borderRadius: 16, padding: 14,
+                                      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                    }}>
+                                      <div>
+                                        <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>Pedido #{order.id.split('-')[0]}</p>
+                                        <p style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2, margin: 0 }}>{date} • S/. {parseFloat(order.total).toFixed(2)}</p>
+                                      </div>
+                                      <span style={{ fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 8, background: statusBg, color: statusColor }}>
+                                        {statusLabel}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* SALIR DEL PANEL */}
+                          <button
+                            onClick={() => { setClientInfo(null); setInputPhone(''); }}
+                            style={{
+                              width: '100%', padding: '10px', background: 'transparent', color: 'var(--color-danger)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                              borderRadius: 14, fontSize: 12, fontWeight: 800, cursor: 'pointer', marginTop: 10
+                            }}
+                          >
+                            Cerrar Sesión del Club
+                          </button>
+                        </div>
+                      )}
                     </>
                   )}
+
                 </div>
               ) : (
                 <div style={{ padding:'12px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:10 }}>
@@ -1635,7 +1936,7 @@ export default function App() {
                     </svg>
                   )},
                   { id:'buscar',  label:'Buscar',  icon: () => Icon.search() },
-                  { id:'club',    label:'Mis Puntos', icon: () => Icon.gift() },
+                  { id:'club',    label:'Club Premios', icon: () => Icon.gift() },
                   { id:'carrito', label:'Carrito', badge: totalQty, icon: () => Icon.cart() },
                 ].map(({ id, label, icon, badge }) => {
                   const active = id === 'carrito' ? false : tab === id;

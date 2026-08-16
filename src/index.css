@@ -53,6 +53,7 @@
   --color-on-surface: #FCFBF9;
   --color-muted: #8F9E96;
   --color-on-primary: #1B4332;
+  --color-on-secondary: #ffffff;
 }
 
 .light {
@@ -66,6 +67,7 @@
   --color-on-surface: #2D2A26;
   --color-muted: #8A8070;
   --color-on-primary: #FCFBF9;
+  --color-on-secondary: #ffffff;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -2107,5 +2109,39 @@ body {
 @keyframes skeleton-shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ESTILOS DE IMPRESIÓN PARA PLANILLAS DE CÓDIGOS QR EN MESA
+   ───────────────────────────────────────────────────────────── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-qr-modal, .printable-qr-modal * {
+    visibility: visible;
+  }
+  .printable-qr-modal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .printable-qr-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 20px !important;
+    padding: 20px !important;
+  }
+  .qr-card-print {
+    break-inside: avoid;
+    border: 2px solid #1B4332 !important;
+    box-shadow: none !important;
+  }
 }
 

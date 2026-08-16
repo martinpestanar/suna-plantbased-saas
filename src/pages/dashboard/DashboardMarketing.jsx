@@ -25,11 +25,15 @@ export default function DashboardMarketing() {
 
   // Estados de Responsividad y Navegación
   const [activeTab, setActiveTab] = useState('campanas');
+  const [subTabCampanas, setSubTabCampanas] = useState('lanzador'); // 'lanzador' | 'audiencias' | 'copys'
+  const [subTabCopiloto, setSubTabCopiloto] = useState('sugerencias'); // 'sugerencias' | 'planificador' | 'automatizaciones'
+  const [subTabPromos, setSubTabPromos] = useState('combo'); // 'combo' | 'descuentos'
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 900);
   const [animatingId, setAnimatingId] = useState(null);
 
   // Estados de Formulario de Campaña Avanzada
   const [selectedSegment, setSelectedSegment] = useState('inactivo_15d');
+  const [selectedChannel, setSelectedChannel] = useState('todos');
   const [promoTitle, setPromoTitle] = useState('');
   const [promocionVal, setPromocionVal] = useState('');
   const [diaSemanaVal, setDiaSemanaVal] = useState('hoy Viernes');
@@ -61,6 +65,11 @@ export default function DashboardMarketing() {
   // Toast
   const [toast, setToast] = useState(null);
 
+  // Estados de Analítica de Campañas
+  const [campanasAnalytica, setCampanasAnalytica] = useState([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [selectedCampanaId, setSelectedCampanaId] = useState(null);
+
   // Estados de Combo del Día
   const [menuItems, setMenuItems] = useState([]);
   const [hamburgers, setHamburgers] = useState([]);
@@ -84,13 +93,16 @@ export default function DashboardMarketing() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleOpenClientsDrawer = async (segmentId) => {
+  const handleOpenClientsDrawer = async (segmentId, cooldown = cooldownDays) => {
     setSelectedSegment(segmentId);
     setShowClientsDrawer(true);
     setDrawerLoading(true);
     setDrawerSearchQuery('');
     try {
-      const { data, error } = await supabase.rpc('get_clientes_by_audiencia', { p_audiencia_id: segmentId });
+      const { data, error } = await supabase.rpc('get_clientes_by_audiencia', { 
+        p_audiencia_id: segmentId,
+        p_cooldown_days: cooldown
+      });
       if (!error && data) {
         setDrawerClients(data);
       } else {
@@ -230,9 +242,33 @@ export default function DashboardMarketing() {
     }
   };
 
+  const fetchCampaignAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('marketing_campanas')
+        .select('id, nombre, reach_limit, estado, created_at, respuestas, respuestas_positivas, respuestas_indecisas, respuestas_negativas, pedidos_reservas_generadas, promocion, audiencia_id')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (!error && data) {
+        // Calcular sin_respuesta dinámicamente
+        const enriched = data.map(c => ({
+          ...c,
+          sin_respuesta: Math.max(0, (c.reach_limit || 0) - (c.respuestas || 0)),
+          tasa_respuesta: c.reach_limit > 0 ? (((c.respuestas || 0) / c.reach_limit) * 100).toFixed(1) : '0.0'
+        }));
+        setCampanasAnalytica(enriched);
+      }
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
-    await Promise.all([fetchSegments(), fetchProposals(), fetchActiveComboSettings(), fetchWeeklyPlanner()]);
+    await Promise.all([fetchSegments(), fetchProposals(), fetchActiveComboSettings(), fetchWeeklyPlanner(), fetchCampaignAnalytics()]);
     setLoading(false);
   };
 
@@ -884,7 +920,8 @@ export default function DashboardMarketing() {
                     { var: '{dias_inactivo}', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.15)' },
                     { var: '{saludo_temporal}', color: '#40916C', bg: 'rgba(64, 145, 108, 0.15)' },
                     { var: '{sucursal_cercana}', color: '#6A1B9A', bg: 'rgba(106, 27, 154, 0.15)' },
-                    { var: '{nombre_restaurante}', color: '#1B4332', bg: 'rgba(27, 67, 50, 0.15)' }
+                    { var: '{nombre_restaurante}', color: '#1B4332', bg: 'rgba(27, 67, 50, 0.15)' },
+                    { var: '{link_google_reviews}', color: '#2563EB', bg: 'rgba(37, 99, 235, 0.15)' }
                   ].map(chip => (
                     <button
                       key={chip.var}
@@ -1466,94 +1503,160 @@ export default function DashboardMarketing() {
 
   const renderCampanasSection = () => {
     return (
-      <div style={{ background: 'linear-gradient(135deg, rgba(64,145,108,0.08) 0%, rgba(27,67,50,0.03) 100%)', border: '1.5px solid rgba(64,145,108,0.25)', borderRadius: 24, padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <span style={{ fontSize: 24 }}>🚀</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        
+        {/* Encabezado del Stepper */}
+        <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-surface-3)', borderRadius: 22, padding: '16px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 900, color: 'var(--color-on-surface)' }}>
-              Lanzador de Campañas Masivas (WhatsApp Gateway)
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, color: 'var(--color-on-surface)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>🚀</span> Diseñador de Envíos Masivos
             </h3>
-            <p style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2 }}>
-              Crea colas de mensajes en Supabase y dispáralos por WhatsApp usando n8n
+            <p style={{ fontSize: 10, color: 'var(--color-muted)', margin: '3px 0 0 0', fontWeight: 600 }}>
+              Embudo de segmentación inteligente & WhatsApp Gateway
             </p>
           </div>
+          <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--color-secondary)', background: 'rgba(64,145,108,0.1)', padding: '4px 10px', borderRadius: 10 }}>
+            5 Pasos
+          </span>
         </div>
 
-        <form onSubmit={handleLaunchCampaign} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleLaunchCampaign} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           
-          {/* Selector de Plantilla de Biblioteca (Propuesta B) */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>
-              📚 Cargar Copy de tu Biblioteca
-            </label>
-            <select
-              value={selectedTemplate?.id || ''}
-              onChange={e => handleSelectCampaignTemplate(e.target.value)}
-              style={{ ...inputStyle, background: 'rgba(255, 255, 255, 0.7)', border: '1.5px solid var(--color-secondary)' }}
-            >
-              <option value="">-- Seleccionar un copy predefinido (opcional) --</option>
-              {templates.map(t => (
-                <option key={t.id} value={t.id}>{t.titulo}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>Nombre de la Campaña</label>
-            <input
-              required type="text"
-              placeholder="Ej. Campaña Reactivación de Invierno"
-              value={promoTitle}
-              onChange={e => setPromoTitle(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <p style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>Segmento Activo</p>
-              <div style={{ ...inputStyle, background: 'rgba(255,255,255,0.6)', fontWeight: 800, border: '1px solid rgba(0,0,0,0.05)' }}>
-                {getSegmentName(selectedSegment)}
-              </div>
+          {/* PASO 1: SEGMENTO CRM */}
+          <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-surface-3)', borderRadius: 22, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                1. Segmento CRM
+              </span>
+              <span style={{ fontSize: 9, color: 'var(--color-muted)', fontWeight: 700 }}>Basado en comportamiento real</span>
             </div>
-            <div>
-              <p style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>Tamaño Máximo</p>
-              <div style={{ ...inputStyle, background: 'rgba(255,255,255,0.6)', fontWeight: 800, border: '1px solid rgba(0,0,0,0.05)' }}>
-                {loading ? 'Calculando...' : `${getEstimatedReach()} clientes`}
-              </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+              {[
+                { id: 'todas', label: '✨ Toda la Base', count: segments.todas, icon: '⭐' },
+                { id: 'inactivo_15d', label: '⚠️ En Riesgo (>15d)', count: segments.inactivo_15d, icon: '💤' },
+                { id: 'vip', label: '👑 VIP / Leales', count: segments.vip, icon: '⭐' },
+                { id: 'frecuente', label: '🔄 Frecuentes', count: segments.frecuente, icon: '🌱' },
+                { id: 'nuevo', label: '🌱 Nuevos (0-1p)', count: segments.nuevo, icon: '✨' },
+                { id: 'fin_de_semana', label: '🥳 Fines de Semana', count: segments.fin_de_semana, icon: '🎉' },
+                { id: 'hamburguesas_lovers', label: '🍔 Burger Lovers', count: segments.hamburguesas_lovers, icon: '🍔' },
+                { id: 'bowls_lovers', label: '🥗 Bowl Lovers', count: segments.bowls_lovers, icon: '🥗' }
+              ].map(s => {
+                const active = selectedSegment === s.id;
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => { setSelectedSegment(s.id); if (navigator.vibrate) navigator.vibrate(4); }}
+                    style={{
+                      background: active ? 'rgba(64,145,108,0.08)' : 'var(--color-surface-2)',
+                      border: active ? '2px solid var(--color-secondary)' : '1px solid var(--color-surface-3)',
+                      borderRadius: 14,
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      transition: 'all 180ms ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface)' }}>{s.label}</span>
+                      {active && <span style={{ fontSize: 10, color: 'var(--color-secondary)' }}>✓</span>}
+                    </div>
+                    <p style={{ fontSize: 14, fontWeight: 900, color: active ? 'var(--color-secondary)' : 'var(--color-muted)', margin: '4px 0 0 0' }}>
+                      {s.count}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Cooldown selector */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.03em' }}>
-              ⏳ Frecuencia de Envío por Cliente (Cooldown)
-            </label>
-            <select
-              value={cooldownDays}
-              onChange={e => setCooldownDays(parseInt(e.target.value))}
-              style={{ ...inputStyle, background: 'rgba(255, 255, 255, 0.7)', border: '1.5px solid var(--color-secondary)' }}
-            >
-              <option value={7}>7 días (Recomendado - Evita Spam)</option>
-              <option value={15}>15 días (Fidelización espaciada)</option>
-              <option value={30}>30 días (Mensual)</option>
-              <option value={0}>Sin Cooldown (Enviar siempre)</option>
-            </select>
+          {/* PASO 2: CANAL DE SERVICIO / CATEGORÍA */}
+          <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-surface-3)', borderRadius: 22, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                2. Canal de Consumo
+              </span>
+              <span style={{ fontSize: 9, color: 'var(--color-muted)', fontWeight: 700 }}>Preferencia del comensal</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {[
+                { id: 'todos', label: '🍽️ Todos los Canales' },
+                { id: 'delivery', label: '🛵 Delivery / Takeout' },
+                { id: 'salon', label: '🪑 Mesa / Salón' }
+              ].map(c => {
+                const active = selectedChannel === c.id;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => { setSelectedChannel(c.id); if (navigator.vibrate) navigator.vibrate(4); }}
+                    style={{
+                      background: active ? 'rgba(64,145,108,0.1)' : 'var(--color-surface-2)',
+                      border: active ? '2px solid var(--color-secondary)' : '1.5px solid var(--color-surface-3)',
+                      borderRadius: 12,
+                      padding: '10px 8px',
+                      textAlign: 'center',
+                      fontSize: 10,
+                      fontWeight: active ? 900 : 800,
+                      color: active ? 'var(--color-secondary)' : 'var(--color-on-surface)',
+                      cursor: 'pointer',
+                      transition: 'all 180ms ease'
+                    }}
+                  >
+                    {c.label}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {getEstimatedReach() > 0 && (
-            <div style={{ background: 'rgba(255,255,255,0.4)', padding: 14, borderRadius: 16, border: '1px solid rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface)' }}>Límite de Envío Personalizado</label>
-                <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-primary)' }}>
-                  {reachLimit} / {getEstimatedReach()} Clientes
+          {/* PASO 3: INACTIVIDAD & PROTECCIÓN ANTI-SPAM */}
+          <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-surface-3)', borderRadius: 22, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                3. Inactividad & Protección Anti-Spam
+              </span>
+            </div>
+
+            <div style={{ background: 'var(--color-surface-2)', padding: 14, borderRadius: 16, border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase' }}>
+                ⏳ Frecuencia Mínima por Cliente (Cooldown)
+              </label>
+              <select
+                value={cooldownDays}
+                onChange={e => setCooldownDays(parseInt(e.target.value))}
+                style={{ ...inputStyle, background: '#fff', border: '1.5px solid var(--color-secondary)' }}
+              >
+                <option value={7}>🛡️ 7 días (Recomendado - Anti-Spam)</option>
+                <option value={15}>⏳ 15 días (Fidelización espaciada)</option>
+                <option value={30}>📅 30 días (Mensual)</option>
+                <option value={0}>⚠️ Sin Cooldown (Enviar siempre)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* PASO 4: AUDIENCIA ENCONTRADA & REGULADOR DE ALCANCE */}
+          <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-secondary)', borderRadius: 22, padding: 18, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 4px 14px rgba(64,145,108,0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                4. Audiencia Encontrada
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 900, color: '#fff', background: 'var(--color-secondary)', padding: '4px 10px', borderRadius: 12 }}>
+                {getEstimatedReach()} Clientes
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface)' }}>¿A cuántos enviar en este lote?</label>
+                <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--color-primary)' }}>
+                  {reachLimit} de {getEstimatedReach()}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <input 
                   type="range" 
                   min={1} 
-                  max={getEstimatedReach()} 
+                  max={getEstimatedReach() || 1} 
                   value={reachLimit} 
                   onChange={e => setReachLimit(parseInt(e.target.value))}
                   style={{ flex: 1, accentColor: 'var(--color-secondary)', cursor: 'pointer', height: 6 }}
@@ -1561,160 +1664,84 @@ export default function DashboardMarketing() {
                 <input
                   type="number"
                   min={1}
-                  max={getEstimatedReach()}
+                  max={getEstimatedReach() || 1}
                   value={reachLimit}
                   onChange={e => setReachLimit(Math.min(getEstimatedReach(), Math.max(1, parseInt(e.target.value) || 1)))}
-                  style={{ ...inputStyle, width: 75, padding: '8px', textAlign: 'center', background: '#fff' }}
+                  style={{ ...inputStyle, width: 70, padding: '6px', textAlign: 'center', background: '#fff', fontSize: 12 }}
                 />
               </div>
             </div>
-          )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, background: 'rgba(255,255,255,0.4)', padding: 14, borderRadius: 16, border: '1px solid rgba(0,0,0,0.05)' }}>
+            <button
+              type="button"
+              onClick={() => handleOpenClientsDrawer(selectedSegment)}
+              style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-surface-3)', borderRadius: 12, padding: '8px 12px', fontSize: 10, fontWeight: 800, color: 'var(--color-secondary)', cursor: 'pointer', alignSelf: 'flex-start' }}
+            >
+              🔍 Inspeccionar Lista de {getEstimatedReach()} Clientes
+            </button>
+          </div>
+
+          {/* PASO 5: MENSAJE PROMOCIONAL & VISTA PREVIA */}
+          <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-surface-3)', borderRadius: 22, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                5. Mensaje Promocional
+              </span>
+            </div>
+
             <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-secondary)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.02em' }}>1. {`{dia}`} de la promo</label>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Nombre de la Campaña</label>
               <input
-                type="text"
-                placeholder="Ej. hoy Viernes"
-                value={diaSemanaVal}
-                onChange={e => setDiaSemanaVal(e.target.value)}
+                required type="text"
+                placeholder="Ej. Promo Reactivación Invierno"
+                value={promoTitle}
+                onChange={e => setPromoTitle(e.target.value)}
                 style={{ ...inputStyle, background: '#fff' }}
               />
             </div>
+
             <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-secondary)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.02em' }}>2. {`{promocion}`} sugerida</label>
-              <input
-                type="text"
-                placeholder="Ej. 20% dscto en burgers"
-                value={promocionVal}
-                onChange={e => setPromocionVal(e.target.value)}
-                style={{ ...inputStyle, background: '#fff' }}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
+                <label style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase' }}>Contenido del Mensaje</label>
+                
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {[
+                    { var: '{nombre}', color: '#B5800E', bg: 'rgba(216, 160, 32, 0.15)' },
+                    { var: '{dia}', color: '#2D6A4F', bg: 'rgba(64, 145, 108, 0.15)' },
+                    { var: '{promocion}', color: '#1B4332', bg: 'rgba(27, 67, 50, 0.15)' },
+                    { var: '{opt_out}', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.08)' }
+                  ].map(chip => (
+                    <button
+                      key={chip.var}
+                      type="button"
+                      onClick={() => insertVariableAtCursor(chip.var, true)}
+                      style={{ background: chip.bg, color: chip.color, border: 'none', borderRadius: 6, padding: '3px 6px', fontSize: 9, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      +{chip.var}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <textarea
+                ref={campaignBodyRef}
+                required rows="4"
+                value={templateText}
+                onChange={e => setTemplateText(e.target.value)}
+                style={{ ...inputStyle, resize: 'none', lineHeight: 1.5, background: '#fff' }}
               />
             </div>
-          </div>
 
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Contenido Personalizado del Mensaje</label>
-              
-              {/* Chips de variables dinámicas para campaña */}
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {[
-                  { var: '{nombre}', color: '#B5800E', bg: 'rgba(216, 160, 32, 0.15)' },
-                  { var: '{dia}', color: '#2D6A4F', bg: 'rgba(64, 145, 108, 0.15)' },
-                  { var: '{promocion}', color: '#1B4332', bg: 'rgba(27, 67, 50, 0.15)' },
-                  { var: '{plato_favorito}', color: '#FF7A00', bg: 'rgba(255, 122, 0, 0.15)' },
-                  { var: '{dias_inactivo}', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.15)' },
-                  { var: '{saludo_temporal}', color: '#40916C', bg: 'rgba(64, 145, 108, 0.15)' },
-                  { var: '{sucursal_cercana}', color: '#6A1B9A', bg: 'rgba(106, 27, 154, 0.15)' },
-                  { var: '{nombre_restaurante}', color: '#1B4332', bg: 'rgba(27, 67, 50, 0.15)' }
-                ].map(chip => (
-                  <button
-                    key={chip.var}
-                    type="button"
-                    onClick={() => insertVariableAtCursor(chip.var, true)}
-                    style={{
-                      background: chip.bg,
-                      color: chip.color,
-                      border: 'none',
-                      borderRadius: 6,
-                      padding: '3px 8px',
-                      fontSize: 9,
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    +{chip.var}
-                  </button>
-                ))}
+            {/* Vista Previa Simulada WhatsApp */}
+            <div style={{ background: '#efeae2', backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundSize: 'cover', borderRadius: 18, padding: 12, border: '1px solid var(--color-surface-3)' }}>
+              <div style={{ background: '#075E54', color: '#fff', padding: '8px 12px', borderRadius: '10px 10px 0 0', fontSize: 11, fontWeight: 800 }}>
+                🌱 Suna Plant-Based · Vista previa WhatsApp
               </div>
-            </div>
-            
-            <textarea
-              ref={campaignBodyRef}
-              required rows="4"
-              value={templateText}
-              onChange={e => setTemplateText(e.target.value)}
-              style={{ ...inputStyle, resize: 'none', lineHeight: 1.5, background: '#fff' }}
-            />
-            <p style={{ fontSize: 9, color: 'var(--color-muted)', marginTop: 5, lineHeight: 1.3 }}>
-              💡 <strong>Tip:</strong> Deja las variables <code>{`{nombre}`}</code>, <code>{`{dia}`}</code> y <code>{`{promocion}`}</code> para autocompilar con los datos de cada cliente.
-            </p>
-          </div>
-
-          {/* VISTA PREVIA SIMULADA DE WHATSAPP */}
-          <div>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.03em' }}>Vista Previa en Tiempo Real (WhatsApp)</label>
-            <div style={{
-              background: '#efeae2',
-              backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")',
-              backgroundSize: 'cover',
-              borderRadius: 22,
-              border: '1.5px solid var(--color-surface-3)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}>
-              {/* WhatsApp Header */}
-              <div style={{
-                background: '#075E54',
-                color: '#fff',
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10
-              }}>
-                <div style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.95)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  color: '#075E54',
-                  fontSize: 15,
-                  border: '1px solid rgba(255,255,255,0.2)'
-                }}>
-                  🌱
-                </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 800, margin: 0, lineHeight: 1.25 }}>Suna Plant-Based</p>
-                  <p style={{ fontSize: 9, opacity: 0.8, margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4cff00', display: 'inline-block' }} />
-                    en línea
-                  </p>
-                </div>
-              </div>
-              
-              {/* WhatsApp Body */}
-              <div style={{
-                padding: '16px 12px',
-                minHeight: 120,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-end'
-              }}>
-                <div style={{
-                  background: '#e2f9cb',
-                  color: '#303030',
-                  borderRadius: '12px 12px 0 12px',
-                  padding: '12px 14px',
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                  alignSelf: 'flex-end',
-                  maxWidth: '85%',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
-                  position: 'relative',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  border: '1.5px solid rgba(7, 94, 84, 0.04)'
-                }}>
+              <div style={{ padding: '12px 6px' }}>
+                <div style={{ background: '#e2f9cb', color: '#303030', borderRadius: '12px 12px 0 12px', padding: '10px 12px', fontSize: 11, lineHeight: 1.45, maxWidth: '90%', marginLeft: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                   <div dangerouslySetInnerHTML={{ __html: getPreviewHtml() }} />
-                  <span style={{ fontSize: 8, color: '#727272', float: 'right', marginTop: 4, marginLeft: 16, display: 'flex', alignItems: 'center', gap: 2 }}>
-                    {new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')} 
-                    <span style={{ color: '#4fc3f7', fontWeight: 'bold' }}>✓✓</span>
+                  <span style={{ fontSize: 8, color: '#727272', float: 'right', marginTop: 4 }}>
+                    {new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')} ✓✓
                   </span>
                 </div>
               </div>
@@ -1723,7 +1750,7 @@ export default function DashboardMarketing() {
 
           {campaignSuccess && (
             <div style={{ background: '#D1FAE5', border: '1px solid #10B981', color: '#065F46', padding: 12, borderRadius: 14, fontSize: 11, fontWeight: 800, textAlign: 'center' }}>
-              🎉 ¡Campaña encolada y lanzada con éxito! Supabase procesó {reachLimit} mensajes y notificó a n8n para el despacho vía WhatsApp. (ID: {campaignIdCreated?.slice(0, 8)})
+              🎉 ¡Campaña encolada y lanzada con éxito! ({campaignIdCreated?.slice(0, 8)})
             </div>
           )}
 
@@ -1734,133 +1761,341 @@ export default function DashboardMarketing() {
               background: 'linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%)',
               color: '#fff',
               border: 'none',
-              borderRadius: 14,
-              padding: '14px',
-              fontSize: 12,
-              fontWeight: 800,
+              borderRadius: 16,
+              padding: '16px',
+              fontSize: 13,
+              fontWeight: 900,
               cursor: (sending || reachLimit <= 0) ? 'not-allowed' : 'pointer',
               opacity: (sending || reachLimit <= 0) ? 0.75 : 1,
               textAlign: 'center',
               width: '100%',
-              marginTop: 4,
-              boxShadow: '0 6px 18px rgba(27,67,50,0.2)',
+              boxShadow: '0 6px 20px rgba(27,67,50,0.25)',
               transition: 'transform 150ms'
             }}
-            onMouseDown={e => { if(!sending && reachLimit > 0) e.currentTarget.style.transform = 'scale(0.98)'; }}
-            onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
           >
-            {sending ? 'Procesando en Supabase...' : '🚀 Encolar y Despachar Campaña'}
+            {sending ? 'Encolando en Supabase...' : `🚀 Lanzar Campaña a ${reachLimit} Clientes`}
           </button>
         </form>
       </div>
     );
   };
 
+  /* ── ANALYTICS RENDER SECTION ── */
+
+  const renderAnaliticaSection = () => {
+    const campanaSeleccionada = campanasAnalytica.find(c => c.id === selectedCampanaId);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 900, color: 'var(--color-on-surface)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              📊 Analítica & Atribución de Campañas
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#40916C', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />
+            </h3>
+            <p style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2 }}>Ventana de atribución: 7 días · Opt-out permanente activo</p>
+          </div>
+          <button
+            type="button"
+            onClick={fetchCampaignAnalytics}
+            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-surface-3)', borderRadius: 10, padding: '6px 12px', fontSize: 10, fontWeight: 800, color: 'var(--color-secondary)', cursor: 'pointer' }}
+          >
+            🔄 Actualizar
+          </button>
+        </div>
+
+        {/* Listado de campañas */}
+        {analyticsLoading ? (
+          <div style={{ textAlign: 'center', padding: 32, color: 'var(--color-muted)', background: 'var(--color-surface)', borderRadius: 20, border: '1.5px solid var(--color-surface-3)' }}>
+            Cargando métricas de campañas...
+          </div>
+        ) : campanasAnalytica.length === 0 ? (
+          <div style={{ background: 'var(--color-surface)', border: '1.5px dashed var(--color-surface-3)', borderRadius: 20, padding: '36px 20px', textAlign: 'center' }}>
+            <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>📭</span>
+            <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-on-surface)' }}>Sin campañas aún</p>
+            <p style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 4 }}>Las métricas aparecen aquí cuando lances tu primera campaña.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {campanasAnalytica.map(c => {
+              const total = c.reach_limit || 1;
+              const pctPos = ((c.respuestas_positivas || 0) / total) * 100;
+              const pctInd = ((c.respuestas_indecisas || 0) / total) * 100;
+              const pctNeg = ((c.respuestas_negativas || 0) / total) * 100;
+              const pctSin = ((c.sin_respuesta || 0) / total) * 100;
+              const isSelected = selectedCampanaId === c.id;
+
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedCampanaId(isSelected ? null : c.id)}
+                  style={{
+                    background: isSelected ? 'var(--color-surface)' : 'var(--color-surface-2)',
+                    border: isSelected ? '2px solid var(--color-secondary)' : '1.5px solid var(--color-surface-3)',
+                    borderRadius: 20,
+                    padding: '16px 18px',
+                    cursor: 'pointer',
+                    transition: 'all 220ms cubic-bezier(0.34,1.56,0.64,1)',
+                    boxShadow: isSelected ? '0 8px 24px rgba(27,67,50,0.1)' : 'none'
+                  }}
+                >
+                  {/* Cabecera campaña */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, fontWeight: 900, color: 'var(--color-on-surface)', marginBottom: 2 }}>{c.nombre}</p>
+                      <p style={{ fontSize: 9, color: 'var(--color-muted)', fontWeight: 700 }}>
+                        {new Date(c.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })} · {c.audiencia_id}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 8, background: c.estado === 'enviando' ? 'rgba(239,68,68,0.1)' : 'rgba(64,145,108,0.1)', color: c.estado === 'enviando' ? '#EF4444' : '#40916C' }}>
+                        {c.estado === 'enviando' ? '🔴 Activa' : '✅ Enviada'}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>{isSelected ? '▲' : '▼'}</span>
+                    </div>
+                  </div>
+
+                  {/* KPI Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+                    {[
+                      { label: '📤 Enviados', value: total, color: 'var(--color-on-surface)' },
+                      { label: '💬 Respondieron', value: c.respuestas || 0, color: '#40916C' },
+                      { label: '📈 Tasa', value: `${c.tasa_respuesta}%`, color: '#1B4332' },
+                      { label: '🍽️ Pedidos/Reservas', value: c.pedidos_reservas_generadas || 0, color: '#D8A020' }
+                    ].map(kpi => (
+                      <div key={kpi.label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.6)', borderRadius: 12, padding: '8px 4px' }}>
+                        <p style={{ fontSize: 16, fontWeight: 900, color: kpi.color, margin: 0, letterSpacing: '-0.03em' }}>{kpi.value}</p>
+                        <p style={{ fontSize: 8, color: 'var(--color-muted)', marginTop: 2, fontWeight: 700, lineHeight: 1.2 }}>{kpi.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Barra Segmentada */}
+                  <div>
+                    <p style={{ fontSize: 9, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Distribución de Respuestas</p>
+                    <div style={{ height: 10, borderRadius: 8, overflow: 'hidden', display: 'flex', background: 'var(--color-surface-3)' }}>
+                      {pctPos > 0 && <div style={{ width: `${pctPos}%`, background: '#40916C', transition: 'width 600ms ease' }} title={`Positivas: ${c.respuestas_positivas}`} />}
+                      {pctInd > 0 && <div style={{ width: `${pctInd}%`, background: '#D8A020', transition: 'width 600ms ease' }} title={`Indecisas: ${c.respuestas_indecisas}`} />}
+                      {pctNeg > 0 && <div style={{ width: `${pctNeg}%`, background: '#EF4444', transition: 'width 600ms ease' }} title={`Negativas/Opt-out: ${c.respuestas_negativas}`} />}
+                      {pctSin > 0 && <div style={{ width: `${pctSin}%`, background: 'var(--color-surface-3)', transition: 'width 600ms ease' }} title={`Sin respuesta: ${c.sin_respuesta}`} />}
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                      {[
+                        { label: 'Positiva', val: c.respuestas_positivas || 0, color: '#40916C', pct: pctPos },
+                        { label: 'Indecisa', val: c.respuestas_indecisas || 0, color: '#D8A020', pct: pctInd },
+                        { label: 'Opt-out', val: c.respuestas_negativas || 0, color: '#EF4444', pct: pctNeg },
+                        { label: 'Sin resp.', val: c.sin_respuesta || 0, color: 'var(--color-muted)', pct: pctSin }
+                      ].map(seg => (
+                        <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: seg.color, display: 'inline-block', flexShrink: 0 }} />
+                          <span style={{ fontSize: 9, color: 'var(--color-muted)', fontWeight: 700 }}>
+                            {seg.label}: <strong style={{ color: seg.color }}>{seg.val}</strong> ({seg.pct.toFixed(0)}%)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Detalle expandible */}
+                  {isSelected && (
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1.5px dashed var(--color-surface-3)', animation: 'fadeIn 200ms ease' }}>
+                      <p style={{ fontSize: 9, fontWeight: 900, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 10 }}>Desglose de Conversiones</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ background: 'rgba(64,145,108,0.06)', border: '1px solid rgba(64,145,108,0.15)', borderRadius: 14, padding: '10px 14px' }}>
+                          <p style={{ fontSize: 22, fontWeight: 900, color: '#40916C', margin: 0 }}>{c.pedidos_reservas_generadas || 0}</p>
+                          <p style={{ fontSize: 10, color: '#40916C', fontWeight: 700, marginTop: 2 }}>🍽️ Pedidos / Reservas atribuidos</p>
+                        </div>
+                        <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 14, padding: '10px 14px' }}>
+                          <p style={{ fontSize: 22, fontWeight: 900, color: '#EF4444', margin: 0 }}>{c.respuestas_negativas || 0}</p>
+                          <p style={{ fontSize: 10, color: '#EF4444', fontWeight: 700, marginTop: 2 }}>🚫 Bajas de marketing (Opt-out)</p>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 10, background: 'rgba(216,160,32,0.06)', border: '1px solid rgba(216,160,32,0.15)', borderRadius: 14, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface)' }}>Tasa de Conversión Real</p>
+                          <p style={{ fontSize: 9, color: 'var(--color-muted)' }}>Pedidos ÷ Enviados</p>
+                        </div>
+                        <p style={{ fontSize: 24, fontWeight: 900, color: '#D8A020', letterSpacing: '-0.03em' }}>
+                          {total > 0 ? (((c.pedidos_reservas_generadas || 0) / total) * 100).toFixed(1) : '0.0'}%
+                        </p>
+                      </div>
+                      <p style={{ fontSize: 9, color: 'var(--color-muted)', marginTop: 10, lineHeight: 1.4, background: 'rgba(0,0,0,0.02)', padding: '8px 10px', borderRadius: 10 }}>
+                        💡 La atribución incluye respuestas recibidas dentro de 7 días del envío masivo, detectadas automáticamente por el bot de WhatsApp.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Sub-nav renderer helper
+  const renderSubNav = (items, current, setter) => (
+    <div style={{
+      display: 'flex',
+      gap: 6,
+      background: 'var(--color-surface-2)',
+      padding: '4px',
+      borderRadius: 14,
+      border: '1px solid var(--color-surface-3)',
+      overflowX: 'auto',
+      scrollbarWidth: 'none',
+      WebkitOverflowScrolling: 'touch'
+    }}>
+      {items.map(item => {
+        const active = current === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => { setter(item.id); if (navigator.vibrate) navigator.vibrate(4); }}
+            style={{
+              flex: 1,
+              whiteSpace: 'nowrap',
+              padding: '7px 12px',
+              borderRadius: 10,
+              border: 'none',
+              background: active ? 'var(--color-surface)' : 'transparent',
+              color: active ? 'var(--color-primary)' : 'var(--color-muted)',
+              fontSize: 11,
+              fontWeight: active ? 800 : 700,
+              cursor: 'pointer',
+              boxShadow: active ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+              transition: 'all 180ms cubic-bezier(0.4, 0, 0.2, 1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5
+            }}
+          >
+            <span>{item.icon}</span>
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   /* ── MAIN COMPONENT RENDER ── */
 
   return (
-    <div style={{ padding: '20px 20px calc(80px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 20, position: 'relative' }}>
+    <div style={{ padding: '16px 16px calc(80px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 16, position: 'relative', maxWidth: 1200, margin: '0 auto' }}>
       
-      {/* Encabezado */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Encabezado Mobile-Native */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-surface)', padding: '14px 16px', borderRadius: 20, border: '1px solid var(--color-surface-3)', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
         <div>
-          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 24, fontWeight: 900, color: 'var(--color-on-surface)', lineHeight: 1.2 }}>
-            Copiloto de Marketing e IA
+          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 18, fontWeight: 900, color: 'var(--color-on-surface)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>⚡</span> Marketing & IA
           </h1>
-          <p style={{ fontSize: 11, color: 'var(--color-muted)', fontWeight: 600, marginTop: 3 }}>
-            Gestión inteligente de promociones, mermas y fidelización de clientes
+          <p style={{ fontSize: 10, color: 'var(--color-muted)', fontWeight: 600, margin: '2px 0 0' }}>
+            Centro de Mando Conversacional Suna
           </p>
         </div>
+        <span style={{ fontSize: 9, fontWeight: 800, color: '#40916C', background: 'rgba(64,145,108,0.1)', padding: '4px 8px', borderRadius: 8, border: '1px solid rgba(64,145,108,0.2)' }}>
+          ● En línea
+        </span>
       </div>
 
-      {/* Navegación por Pestañas (Solo visible en móviles) */}
-      {!isDesktop && (
-        <div style={{
-          display: 'flex',
-          background: 'var(--color-surface-2)',
-          padding: 4,
-          borderRadius: 18,
-          border: '1.5px solid var(--color-surface-3)',
-          marginBottom: 6
-        }}>
-          {[
-            { id: 'campanas', label: '🎯 Campañas', desc: 'WhatsApp & Leads' },
-            { id: 'copiloto', label: '🧠 Copiloto IA', desc: 'Sugerencias IA' },
-            { id: 'combos', label: '🍔 Combos', desc: 'PWA Combo' }
-          ].map(tab => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id); if (navigator.vibrate) navigator.vibrate(5); }}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 2,
-                  padding: '10px 4px',
-                  background: isActive ? 'var(--color-surface)' : 'transparent',
-                  color: isActive ? 'var(--color-primary)' : 'var(--color-muted)',
-                  border: 'none',
-                  borderRadius: 14,
-                  cursor: 'pointer',
-                  fontFamily: 'Outfit, sans-serif',
-                  transition: 'all 200ms ease',
-                  boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.04)' : 'none'
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 800 }}>{tab.label}</span>
-                <span style={{ fontSize: 8, opacity: 0.7, fontWeight: 700 }}>{tab.desc}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Navegación por Pestañas Principales (Tab Bar Nativo App) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 4,
+        background: 'var(--color-surface-2)',
+        padding: 4,
+        borderRadius: 18,
+        border: '1.5px solid var(--color-surface-3)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
+      }}>
+        {[
+          { id: 'campanas', icon: '🚀', label: 'Campañas' },
+          { id: 'analitica', icon: '📊', label: 'Analítica' },
+          { id: 'copiloto', icon: '🧠', label: 'Copiloto' },
+          { id: 'combos', icon: '🍔', label: 'Ofertas' }
+        ].map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); if (navigator.vibrate) navigator.vibrate(5); }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                padding: '9px 2px',
+                background: isActive ? 'var(--color-surface)' : 'transparent',
+                color: isActive ? 'var(--color-primary)' : 'var(--color-muted)',
+                border: 'none',
+                borderRadius: 14,
+                cursor: 'pointer',
+                fontFamily: 'Outfit, sans-serif',
+                transition: 'all 200ms ease',
+                boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.06)' : 'none'
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{tab.icon}</span>
+              <span style={{ fontSize: 10, fontWeight: isActive ? 900 : 700 }}>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
-      {/* Layout Principal: Doble columna en Desktop, Filtrado por Pestañas en Móvil */}
-      {isDesktop ? (
-        <div className="dash-layout-main" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 28, alignItems: 'start' }}>
-          
-          {/* Columna Izquierda */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {renderSegmentosSection()}
-            {renderCopyLibrarySection()}
-            {renderCampanasSection()}
+      {/* Vistas Dinámicas Según Pestaña y Sub-Pestaña Seleccionada */}
+      <div className="animate-fade-up">
+
+        {/* 1. MÓDULO CAMPAÑAS */}
+        {activeTab === 'campanas' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {renderSubNav([
+              { id: 'lanzador', icon: '📤', label: 'Enviar Masivo' },
+              { id: 'audiencias', icon: '👥', label: 'Audiencias' },
+              { id: 'copys', icon: '📚', label: 'Biblioteca Copys' }
+            ], subTabCampanas, setSubTabCampanas)}
+
+            {subTabCampanas === 'lanzador' && renderCampanasSection()}
+            {subTabCampanas === 'audiencias' && renderSegmentosSection()}
+            {subTabCampanas === 'copys' && renderCopyLibrarySection()}
           </div>
+        )}
 
-          {/* Columna Derecha (Sticky) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, position: 'sticky', top: 20 }}>
-            {renderCopilotoSection()}
-            {renderPlanificadorSemanalSection()}
-            {renderTriggersSection()}
+        {/* 2. MÓDULO ANALÍTICA */}
+        {activeTab === 'analitica' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {renderAnaliticaSection()}
+          </div>
+        )}
+
+        {/* 3. MÓDULO COPILOTO IA */}
+        {activeTab === 'copiloto' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {renderSubNav([
+              { id: 'sugerencias', icon: '💡', label: 'Sugerencias IA' },
+              { id: 'planificador', icon: '📅', label: 'Plan Semanal' },
+              { id: 'automatizaciones', icon: '⚡', label: 'Triggers' }
+            ], subTabCopiloto, setSubTabCopiloto)}
+
+            {subTabCopiloto === 'sugerencias' && renderCopilotoSection()}
+            {subTabCopiloto === 'planificador' && renderPlanificadorSemanalSection()}
+            {subTabCopiloto === 'automatizaciones' && renderTriggersSection()}
+          </div>
+        )}
+
+        {/* 4. MÓDULO OFERTAS & COMBOS */}
+        {activeTab === 'combos' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {renderComboSection()}
           </div>
+        )}
 
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} className="animate-fade-up">
-          {activeTab === 'campanas' && (
-            <>
-              {renderSegmentosSection()}
-              {renderCopyLibrarySection()}
-              {renderCampanasSection()}
-            </>
-          )}
-          {activeTab === 'copiloto' && (
-            <>
-              {renderCopilotoSection()}
-              {renderPlanificadorSemanalSection()}
-              {renderTriggersSection()}
-            </>
-          )}
-          {activeTab === 'combos' && (
-            <>
-              {renderComboSection()}
-            </>
-          )}
-        </div>
-      )}
+      </div>
 
       {/* Drawer Lateral / Bottom Sheet de Clientes */}
       {showClientsDrawer && (
@@ -2031,48 +2266,23 @@ export default function DashboardMarketing() {
                                 {initials}
                               </div>
                               <div style={{ minWidth: 0, flex: 1 }}>
-                                <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                  {client.nombre}
-                                </p>
-                                <p style={{ fontSize: 10, color: 'var(--color-muted)', margin: '2px 0 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  📱 {client.telefono || 'Sin celular'}
-                                </p>
-                                <span style={{ 
-                                  fontSize: 8, 
-                                  fontWeight: 800, 
-                                  color: 'var(--color-primary)', 
-                                  background: 'rgba(64,145,108,0.1)', 
-                                  padding: '2px 6px', 
-                                  borderRadius: 6,
-                                  display: 'inline-block',
-                                  marginTop: 4
-                                }}>
-                                  {client.reason || 'Segmentado'}
-                                </span>
-                                {(() => {
-                                  if (!client.ultimo_envio_at) return null;
-                                  const lastSent = new Date(client.ultimo_envio_at);
-                                  const now = new Date();
-                                  const diffTime = Math.abs(now - lastSent);
-                                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                  const inCooldown = cooldownDays > 0 && diffDays <= cooldownDays;
-                                  if (!inCooldown) return null;
-                                  return (
-                                    <span style={{ 
-                                      fontSize: 8, 
-                                      fontWeight: 800, 
-                                      color: '#727272', 
-                                      background: '#e0e0e0', 
-                                      padding: '2px 6px', 
-                                      borderRadius: 6,
-                                      display: 'inline-block',
-                                      marginTop: 4,
-                                      marginLeft: 6
-                                    }}>
-                                      ⏳ Cooldown activo ({diffDays}d)
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                    {client.nombre}
+                                  </p>
+                                  {client.cooldown_activo ? (
+                                    <span style={{ fontSize: 8, fontWeight: 800, color: '#EF4444', background: 'rgba(239,68,68,0.1)', padding: '2px 6px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.2)' }}>
+                                      ⏳ Cooldown
                                     </span>
-                                  );
-                                })()}
+                                  ) : (
+                                    <span style={{ fontSize: 8, fontWeight: 800, color: '#40916C', background: 'rgba(64,145,108,0.1)', padding: '2px 6px', borderRadius: 6, border: '1px solid rgba(64,145,108,0.2)' }}>
+                                      ✅ Elegible
+                                    </span>
+                                  )}
+                                </div>
+                                <p style={{ fontSize: 9, color: 'var(--color-muted)', margin: '2px 0 0 0' }}>
+                                  📱 {client.telefono || 'Sin cel'}
+                                </p>
                               </div>
                             </div>
 

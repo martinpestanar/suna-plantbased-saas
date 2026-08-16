@@ -21,7 +21,9 @@ import {
   RiSparklingLine,
   RiAlertLine,
   RiNotification3Line,
-  RiCheckFill
+  RiCheckFill,
+  RiQrCodeLine,
+  RiPrinterLine
 } from 'react-icons/ri';
 
 export default function DashboardSalon() {
@@ -67,8 +69,37 @@ export default function DashboardSalon() {
 
 
 
+  // Estado del Generador de Tarjetas QR para Mesas
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [tableTokens, setTableTokens] = useState({});
+  const [customQrTitle, setCustomQrTitle] = useState('📱 Escanea & Ordena sin Esperar');
+  const [customQrPromo, setCustomQrPromo] = useState('💬 Obtén 10% de descuento validando tu WhatsApp');
+  const [customQrColor, setCustomQrColor] = useState('#1B4332');
+
   // Estado de Alertas de Cocina en Tiempo Real (Idea 4)
   const [kitchenAlerts, setKitchenAlerts] = useState([]); 
+
+  const handleOpenQrModal = async () => {
+    setShowQrModal(true);
+    try {
+      const tokensMap = {};
+      for (const m of mesas) {
+        if (m.codigo_qr_token) {
+          tokensMap[m.id] = m.codigo_qr_token;
+        } else {
+          try {
+            const { data } = await supabase.rpc('obtener_o_generar_qr_mesa', { p_mesa_id: m.id });
+            tokensMap[m.id] = data || ('MESA' + m.numero);
+          } catch (e) {
+            tokensMap[m.id] = 'MESA' + m.numero;
+          }
+        }
+      }
+      setTableTokens(tokensMap);
+    } catch (err) {
+      console.error('Error generando tokens de mesa:', err);
+    }
+  };
 
   // Administración básica
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -114,13 +145,26 @@ export default function DashboardSalon() {
     if (!activeRestaurant?.id) return;
     setLoading(true);
     try {
+      // 1. Cargar Personal y Mozos activos del restaurante
+      const { data: personalData } = await supabase
+        .from('personal')
+        .select('*')
+        .eq('restaurante_id', activeRestaurant.id)
+        .eq('activo', true);
+
       const { data: mozosData } = await supabase
         .from('mozos')
         .select('*')
         .eq('restaurante_id', activeRestaurant.id)
-        .eq('activo', true)
-        .order('nombre');
-      setMozos(mozosData || []);
+        .eq('activo', true);
+
+      const combinedMozos = [
+        ...(personalData || []).filter(p => !p.modulos_permitidos || p.modulos_permitidos.includes('salon') || p.rol === 'camarero' || p.rol === 'admin'),
+        ...(mozosData || []).map(m => ({ ...m, pin_acceso: m.pin }))
+      ];
+
+      const uniqueMozos = Array.from(new Map(combinedMozos.map(item => [item.nombre, item])).values());
+      setMozos(uniqueMozos);
 
       const { data: mesasData } = await supabase
         .from('mesas')
@@ -128,6 +172,7 @@ export default function DashboardSalon() {
         .eq('restaurante_id', activeRestaurant.id)
         .order('numero');
       setMesas(mesasData || []);
+
 
       const { data: itemsData } = await supabase
         .from('items_menu')
@@ -268,12 +313,12 @@ export default function DashboardSalon() {
       const nextPin = pinInput + num;
       setPinInput(nextPin);
       if (nextPin.length === 4) {
-        if (nextPin === pinMozoTarget.pin) {
+        const expectedPin = String(pinMozoTarget?.pin_acceso || pinMozoTarget?.pin || '1234');
+        if (nextPin === expectedPin) {
           setActiveMozo(pinMozoTarget);
           setCurrentView('tables_grid');
           setPinInput('');
           setPinMozoTarget(null);
-          // Habilitar contexto de audio tras interacción
           playKitchenChime(); 
         } else {
           setPinError('PIN incorrecto. Reintente.');
@@ -282,6 +327,7 @@ export default function DashboardSalon() {
       }
     }
   };
+
 
   const handleBackspace = () => {
     setPinInput(prev => prev.slice(0, -1));
@@ -363,10 +409,13 @@ export default function DashboardSalon() {
           estado_pago: 'pendiente',
           mesa_id: selectedTable.id,
           mozo_id: activeMozo.id,
+          personal_id: activeMozo.id,
+          mozo_nombre: activeMozo.nombre,
           metodo_pago: 'efectivo'
         }])
         .select()
         .single();
+
 
       if (orderErr) throw orderErr;
 
@@ -865,6 +914,25 @@ export default function DashboardSalon() {
         </div>
 
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={handleOpenQrModal}
+            title="Generar e imprimir tarjetas QR para mesas"
+            style={{
+              padding: '6px 12px',
+              borderRadius: 10,
+              border: '1.5px solid #1B4332',
+              background: '#1B4332',
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: 'pointer',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            <RiQrCodeLine size={14} /> Imprimir QRs
+          </button>
           <button
             onClick={() => setIsAdminMode(!isAdminMode)}
             style={{
@@ -1841,6 +1909,147 @@ export default function DashboardSalon() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {/* MODAL: GENERADOR DE TARJETAS QR IMPRIMIBLES */}
+      {showQrModal && (
+        <div className="printable-qr-modal" style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(15,26,21,0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', flexDirection: 'column', zIndex: 9999999, overflowY: 'auto', padding: 24
+        }}>
+          {/* Header del Modal (No Imprimible) */}
+          <div className="no-print" style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            background: '#fff', padding: '16px 24px', borderRadius: 20, marginBottom: 16,
+            border: '1.5px solid #EBE7DC', boxShadow: '0 8px 30px rgba(0,0,0,0.1)'
+          }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1B4332', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <RiQrCodeLine size={22} color="#40916C" /> Generador de Tarjetas QR para Mesas
+              </h3>
+              <p style={{ fontSize: 12, color: '#8A8070', margin: '4px 0 0 0', fontWeight: 600 }}>
+                Imprime estas planillas físicas. Cada QR cuenta con un <strong>token dinámico de seguridad</strong> para prevenir pedidos falsos fuera del local.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => window.print()}
+                style={{
+                  background: customQrColor, color: '#fff', border: 'none', borderRadius: 12,
+                  padding: '10px 20px', fontSize: 12, fontWeight: 900, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 14px rgba(27,67,50,0.3)'
+                }}
+              >
+                <RiPrinterLine size={18} /> Imprimir Tarjetas (PDF)
+              </button>
+              <button
+                onClick={() => setShowQrModal(false)}
+                style={{ background: '#F5F2EB', border: '1px solid #EBE7DC', borderRadius: 12, padding: '10px 14px', cursor: 'pointer' }}
+              >
+                <RiCloseLine size={20} color="#1B4332" />
+              </button>
+            </div>
+          </div>
+
+          {/* Barra de Personalización de Copy & Promoción (No Imprimible) */}
+          <div className="no-print" style={{
+            background: '#FFF', border: '1.5px solid #EBE7DC', borderRadius: 20,
+            padding: '14px 20px', marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+          }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <label style={{ fontSize: 11, fontWeight: 900, color: '#1B4332', display: 'block', marginBottom: 4 }}>
+                ✍️ Título de la Tarjeta:
+              </label>
+              <input
+                type="text"
+                value={customQrTitle}
+                onChange={e => setCustomQrTitle(e.target.value)}
+                placeholder="Ej. 📱 Escanea & Ordena sin Esperar"
+                className="input-field"
+                style={{ fontSize: 12, padding: '8px 12px', background: '#FCFBF9', border: '1px solid #EBE7DC', borderRadius: 10, width: '100%', color: '#1B4332', fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ flex: 1.5, minWidth: 280 }}>
+              <label style={{ fontSize: 11, fontWeight: 900, color: '#1B4332', display: 'block', marginBottom: 4 }}>
+                🎁 Promoción / Gancho Comercial:
+              </label>
+              <input
+                type="text"
+                value={customQrPromo}
+                onChange={e => setCustomQrPromo(e.target.value)}
+                placeholder="Ej. 💬 Obtén 10% de descuento validando tu WhatsApp"
+                className="input-field"
+                style={{ fontSize: 12, padding: '8px 12px', background: '#FCFBF9', border: '1px solid #EBE7DC', borderRadius: 10, width: '100%', color: '#1B4332', fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ width: 120 }}>
+              <label style={{ fontSize: 11, fontWeight: 900, color: '#1B4332', display: 'block', marginBottom: 4 }}>
+                🎨 Color Marca:
+              </label>
+              <input
+                type="color"
+                value={customQrColor}
+                onChange={e => setCustomQrColor(e.target.value)}
+                style={{ width: '100%', height: 36, border: '1px solid #EBE7DC', borderRadius: 10, cursor: 'pointer', padding: 2, background: '#FCFBF9' }}
+              />
+            </div>
+          </div>
+
+          {/* Grid de Tarjetas Imprimibles */}
+          <div className="printable-qr-grid" style={{
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 24
+          }}>
+            {mesas.map(m => {
+              const token = tableTokens[m.id] || m.codigo_qr_token || 'SALON';
+              const baseUrl = window.location.origin;
+              const qrUrl = `${baseUrl}/${activeRestaurant?.slug || 'suna'}?mesa=${m.numero}&canal=salon&token=${token}`;
+              // Usar color personalizado hex sin #
+              const hexColor = customQrColor.replace('#', '');
+              const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrUrl)}&color=${hexColor}&bgcolor=FCFBF9`;
+
+              return (
+                <div key={m.id} className="qr-card-print" style={{
+                  background: '#FCFBF9', border: `2.5px solid ${customQrColor}`, borderRadius: 24,
+                  padding: 24, textAlign: 'center', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 14, boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
+                  position: 'relative'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 22 }}>🌿</span>
+                    <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, color: customQrColor, fontSize: 16 }}>
+                      {activeRestaurant?.nombre || 'Suna Gourmet'}
+                    </span>
+                  </div>
+                  
+                  <div style={{
+                    background: customQrColor, color: '#fff', borderRadius: 14,
+                    padding: '6px 20px', fontSize: 15, fontWeight: 900, letterSpacing: '0.05em'
+                  }}>
+                    MESA {m.numero}
+                  </div>
+
+                  <img
+                    src={qrImgUrl}
+                    alt={`QR Mesa ${m.numero}`}
+                    style={{ width: 170, height: 170, borderRadius: 18, border: '2px solid #EBE7DC', padding: 8, background: '#fff' }}
+                  />
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <p style={{ fontSize: 12, fontWeight: 900, color: customQrColor, margin: 0 }}>
+                      {customQrTitle}
+                    </p>
+                    <p style={{ fontSize: 10.5, fontWeight: 800, color: '#40916C', margin: 0 }}>
+                      {customQrPromo}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

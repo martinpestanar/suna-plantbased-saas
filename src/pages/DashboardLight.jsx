@@ -15,6 +15,8 @@ import DashboardFinanzas from './dashboard/DashboardFinanzas.jsx';
 import DashboardClientes from './dashboard/DashboardClientes.jsx';
 import DashboardPremios from './dashboard/DashboardPremios.jsx';
 import DashboardSalon from './dashboard/DashboardSalon.jsx';
+import DashboardMiRestaurante from './dashboard/DashboardMiRestaurante.jsx';
+import DashboardModulos from './dashboard/DashboardModulos.jsx';
 
 
 /* ── Iconos Bottom Nav (reutilizados, colores adaptados vía prop) ── */
@@ -127,8 +129,8 @@ const TABS = [
   { id: 'delivery',   label: 'Delivery',        Icon: IcoDelivery },
   { id: 'clientes',   label: 'Clientes',        Icon: IcoClientes },
   { id: 'premios',    label: 'Premios',         Icon: IcoPremios },
-  { id: 'metricas',   label: 'Métricas',        Icon: IcoMetricas },
   { id: 'finanzas',   label: 'Finanzas',        Icon: IcoHome },
+  { id: 'restaurante',label: 'Mi Restaurante',  Icon: IcoHome },
 ];
 
 /* ── Selector de Restaurante ── */
@@ -210,7 +212,7 @@ function Clock() {
    DASHBOARD LIGHT — Shell con tema claro
    ═══════════════════════════════════════════════════════════ */
 export default function DashboardLight() {
-  const { restaurants, activeRestaurant, selectRestaurant, resLoading } = useAuth();
+  const { restaurants, activeRestaurant, selectRestaurant, resLoading, allowedModules } = useAuth();
   const { route, navigate } = useRouter();
   
   const getTabFromRoute = (r) => {
@@ -223,8 +225,9 @@ export default function DashboardLight() {
     if (r.startsWith('/dashboard/premios'))    return 'premios';
     if (r.startsWith('/dashboard/salon'))      return 'salon';
     if (r.startsWith('/dashboard/delivery'))   return 'delivery';
-    if (r.startsWith('/dashboard/metricas'))   return 'metricas';
     if (r.startsWith('/dashboard/finanzas'))   return 'finanzas';
+    if (r.startsWith('/dashboard/modulos'))    return 'modulos';
+    if (r.startsWith('/dashboard/restaurante'))return 'restaurante';
     return 'inicio';
   };
 
@@ -261,6 +264,34 @@ export default function DashboardLight() {
   };
 
   const renderContent = () => {
+    if (allowedModules && Array.isArray(allowedModules) && !allowedModules.includes(activeTab) && activeTab !== 'inicio' && activeTab !== 'restaurante') {
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          minHeight: '60vh', padding: 24, textAlign: 'center'
+        }}>
+          <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, marginBottom: 16 }}>
+            🔒
+          </div>
+          <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 900, color: 'var(--color-on-surface)', margin: '0 0 8px' }}>
+            Módulo Desactivado
+          </h2>
+          <p style={{ fontSize: 14, color: 'var(--color-muted)', maxWidth: 400, margin: '0 0 24px', lineHeight: 1.4 }}>
+            El módulo <b style={{ textTransform: 'capitalize' }}>{activeTab}</b> está actualmente desactivado para este restaurante. Puedes volver a activarlo en la sección de ajustes.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard/restaurante')}
+            style={{
+              padding: '14px 24px', borderRadius: 16, background: 'var(--color-primary)', border: 'none',
+              color: '#ffffff', fontSize: 14, fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 14px rgba(16,185,129,0.25)'
+            }}
+          >
+            Ir a Mi Restaurante
+          </button>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'inicio':     return <DashboardHome onNavigate={switchTab}/>;
       case 'ordenes':    return <DashboardOrdenes key={activeRestaurant?.id}/>;
@@ -272,8 +303,9 @@ export default function DashboardLight() {
       case 'clientes':   return <DashboardClientes/>;
       case 'premios':    return <DashboardPremios/>;
       case 'salon':      return <DashboardSalon/>;
-      case 'metricas':   return <DashboardMetricas/>;
       case 'finanzas':   return <DashboardFinanzas/>;
+      case 'modulos':    return <DashboardModulos/>;
+      case 'restaurante':return <DashboardMiRestaurante/>;
       default:           return <DashboardHome onNavigate={switchTab}/>;
     }
   };
@@ -553,11 +585,16 @@ export default function DashboardLight() {
                 marginTop: 6
               }}>
                 {[
-                  { id: 'inventario', label: 'Inventario', icon: '📦', desc: 'Insumos' },
-                  { id: 'finanzas',   label: 'Finanzas',    icon: '💵', desc: 'Caja' },
-                  { id: 'marketing',  label: 'Marketing',   icon: '🚀', desc: 'Copiloto' },
-                  { id: 'delivery',   label: 'Delivery',    icon: '🛵', desc: 'Tarifas' },
-                  { id: 'metricas',   label: 'Métricas',    icon: '📊', desc: 'Ventas' },
+                  { id: 'carta',      label: 'Carta',       icon: '📋', desc: 'Menú & Platos' },
+                  { id: 'inventario', label: 'Inventario',  icon: '📦', desc: 'Stock & Insumos' },
+                  { id: 'finanzas',   label: 'Finanzas',    icon: '💵', desc: 'Caja & Gastos' },
+                  { id: 'marketing',  label: 'Marketing',   icon: '⚡', desc: 'IA & WhatsApp' },
+                  { id: 'delivery',   label: 'Delivery',    icon: '🛵', desc: 'Despachos' },
+                  { id: 'clientes',   label: 'Clientes',    icon: '👥', desc: 'CRM' },
+                  { id: 'premios',    label: 'Premios',     icon: '🎁', desc: 'Puntos' },
+                  { id: 'salon',      label: 'Salón',       icon: '🪑', desc: 'Mesas & Mozos' },
+                  { id: 'modulos',    label: 'Módulos',     icon: '🧩', desc: 'Suscripciones' },
+                  { id: 'restaurante',label: 'Mi Negocio',  icon: '🏪', desc: 'Ajustes' },
                 ].map(item => (
                   <button
                     key={item.id}

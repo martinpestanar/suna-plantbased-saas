@@ -11,6 +11,7 @@ import Onboarding   from './Onboarding.jsx';
 import Landing      from './pages/Landing.jsx';
 import Login        from './pages/Login.jsx';
 import Dashboard    from './pages/Dashboard.jsx';
+import SuperAdmin   from './pages/SuperAdmin.jsx';
 
 // Páginas LIGHT (nueva versión)
 import LandingLight   from './pages/LandingLight.jsx';
@@ -22,6 +23,9 @@ function RootRouter() {
   const { route }             = useRouter();
   const { session, activeRestaurant } = useAuth();
   const { theme }             = useTheme();
+
+  // ── RUTAS SUPER ADMIN ──────────────────────────────────
+  if (route === '/superadmin') return <SuperAdmin />;
 
   // Páginas que muestran el sidebar de escritorio
   const isDashboard = route.startsWith(ROUTES.DASHBOARD);

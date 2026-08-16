@@ -38,6 +38,15 @@ export default function DashboardPremios() {
   const [emoji, setEmoji] = useState('🎁');
   const [activo, setActivo] = useState(true);
 
+  // Estados de Campaña Google Reviews
+  const [googleReviewActivo, setGoogleReviewActivo] = useState(false);
+  const [googleMapsUrl, setGoogleMapsUrl] = useState('');
+  const [googleReviewTipoPremio, setGoogleReviewTipoPremio] = useState('regalo_fisico');
+  const [googleReviewPuntos, setGoogleReviewPuntos] = useState(100);
+  const [googleReviewRegaloNombre, setGoogleReviewRegaloNombre] = useState('Bebida Gratis de la Casa');
+  const [googleReviewMensaje, setGoogleReviewMensaje] = useState('¡Déjanos tu reseña de 5 estrellas en Google y recibe una Bebida Gratis al instante!');
+  const [savingGoogleConfig, setSavingGoogleConfig] = useState(false);
+
   const fetchPremios = async () => {
     if (!activeRestaurant?.id) return;
     setLoading(true);
@@ -59,7 +68,41 @@ export default function DashboardPremios() {
 
   useEffect(() => {
     fetchPremios();
-  }, [activeRestaurant?.id]);
+    if (activeRestaurant) {
+      setGoogleReviewActivo(Boolean(activeRestaurant.google_review_activo));
+      setGoogleMapsUrl(activeRestaurant.google_maps_url || '');
+      setGoogleReviewTipoPremio(activeRestaurant.google_review_tipo_premio || 'regalo_fisico');
+      setGoogleReviewPuntos(activeRestaurant.google_review_puntos || 100);
+      setGoogleReviewRegaloNombre(activeRestaurant.google_review_regalo_nombre || 'Bebida Gratis de la Casa');
+      setGoogleReviewMensaje(activeRestaurant.google_review_mensaje || '¡Déjanos tu reseña de 5 estrellas en Google y recibe una Bebida Gratis al instante!');
+    }
+  }, [activeRestaurant]);
+
+  const handleSaveGoogleConfig = async () => {
+    if (!activeRestaurant?.id) return;
+    setSavingGoogleConfig(true);
+    try {
+      const { error } = await supabase
+        .from('restaurantes')
+        .update({
+          google_review_activo: googleReviewActivo,
+          google_maps_url: googleMapsUrl,
+          google_review_tipo_premio: googleReviewTipoPremio,
+          google_review_puntos: parseInt(googleReviewPuntos) || 100,
+          google_review_regalo_nombre: googleReviewRegaloNombre,
+          google_review_mensaje: googleReviewMensaje
+        })
+        .eq('id', activeRestaurant.id);
+
+      if (error) throw error;
+      alert('¡Configuración de campaña de reseñas guardada con éxito!');
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar la configuración de reseñas');
+    } finally {
+      setSavingGoogleConfig(false);
+    }
+  };
 
   const openAddModal = () => {
     setEditingId(null);
@@ -174,6 +217,115 @@ export default function DashboardPremios() {
         >
           ➕ Nuevo Premio
         </button>
+      </div>
+
+      {/* SECCIÓN: CAMPAÑA DE RESEÑAS EN GOOGLE MAPS */}
+      <div style={{
+        background: 'var(--color-surface)', border: '1.5px solid #3B82F6',
+        borderRadius: 24, padding: 24, marginBottom: 32, boxShadow: '0 8px 30px rgba(59,130,246,0.06)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 32 }}>⭐</span>
+            <div>
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 18, fontWeight: 900, margin: 0, color: '#1D4ED8' }}>
+                Campaña de Reseñas en Google Maps (Exclusivo Salón)
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: '2px 0 0' }}>
+                Configura el premio que recibirán tus clientes de mesa al mostrar su reseña de 5 estrellas en caja/recepción.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 800 }}>Activar Campaña:</span>
+            <Toggle value={googleReviewActivo} onChange={setGoogleReviewActivo} />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+              🔗 Enlace Directo a Reseña en Google Maps
+            </label>
+            <input
+              type="url"
+              value={googleMapsUrl}
+              onChange={e => setGoogleMapsUrl(e.target.value)}
+              placeholder="Ej. https://g.page/r/YOUR_MAPS_LINK/review"
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)', borderRadius: 12, color: 'var(--color-on-surface)', outline: 'none', fontSize: 12 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+              🎁 Tipo de Recompensa
+            </label>
+            <select
+              value={googleReviewTipoPremio}
+              onChange={e => setGoogleReviewTipoPremio(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)', borderRadius: 12, color: 'var(--color-on-surface)', outline: 'none', fontSize: 12, fontWeight: 700 }}
+            >
+              <option value="regalo_fisico">🍺 Regalo Físico (Bebida / Postre Gratis)</option>
+              <option value="puntos">🪙 Puntos del Club Lealtad</option>
+            </select>
+          </div>
+
+          {googleReviewTipoPremio === 'puntos' ? (
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                🪙 Cantidad de Puntos a Regalar
+              </label>
+              <input
+                type="number"
+                value={googleReviewPuntos}
+                onChange={e => setGoogleReviewPuntos(e.target.value)}
+                placeholder="100"
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)', borderRadius: 12, color: 'var(--color-on-surface)', outline: 'none', fontSize: 12 }}
+              />
+            </div>
+          ) : (
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                🍺 Nombre del Regalo Físico
+              </label>
+              <input
+                type="text"
+                value={googleReviewRegaloNombre}
+                onChange={e => setGoogleReviewRegaloNombre(e.target.value)}
+                placeholder="Ej: Bebida Gratis de la Casa / Postre del Día"
+                style={{ width: '100%', padding: '10px 14px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)', borderRadius: 12, color: 'var(--color-on-surface)', outline: 'none', fontSize: 12 }}
+              />
+            </div>
+          )}
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+              ✍️ Mensaje Promocional del Banner
+            </label>
+            <input
+              type="text"
+              value={googleReviewMensaje}
+              onChange={e => setGoogleReviewMensaje(e.target.value)}
+              placeholder="Ej: ¡Déjanos tu reseña de 5 estrellas en Google y recibe una Bebida Gratis al instante!"
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)', borderRadius: 12, color: 'var(--color-on-surface)', outline: 'none', fontSize: 12 }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+          <button
+            onClick={handleSaveGoogleConfig}
+            disabled={savingGoogleConfig}
+            style={{
+              padding: '10px 22px', background: '#2563EB', color: '#fff',
+              border: 'none', borderRadius: 12, fontWeight: 800, cursor: 'pointer',
+              fontSize: 12, display: 'flex', alignItems: 'center', gap: 6,
+              opacity: savingGoogleConfig ? 0.7 : 1
+            }}
+          >
+            {savingGoogleConfig ? 'Guardando...' : '💾 Guardar Configuración de Reseñas'}
+          </button>
+        </div>
       </div>
 
       {loading ? (
