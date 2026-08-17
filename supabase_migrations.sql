@@ -108,7 +108,10 @@ ADD COLUMN IF NOT EXISTS horarios_semanales JSONB DEFAULT '{"lunes":{"activo":tr
 ADD COLUMN IF NOT EXISTS dias_feriados JSONB DEFAULT '[]'::jsonb,
 ADD COLUMN IF NOT EXISTS mensaje_fuera_horario TEXT DEFAULT 'Nuestra cocina se encuentra actualmente en horario de descanso. Te responderemos apenas abramos.',
 ADD COLUMN IF NOT EXISTS cierre_emergencia_activo BOOLEAN DEFAULT false,
-ADD COLUMN IF NOT EXISTS cierre_emergencia_motivo TEXT DEFAULT 'Hoy nos encontramos cerrados por evento privado / mantenimiento. ¡Volvemos mañana en nuestro horario habitual!';
+ADD COLUMN IF NOT EXISTS cierre_emergencia_motivo TEXT DEFAULT 'Hoy nos encontramos cerrados por evento privado / mantenimiento. ¡Volvemos mañana en nuestro horario habitual!',
+ADD COLUMN IF NOT EXISTS nicho_preset TEXT DEFAULT 'plant_based',
+ADD COLUMN IF NOT EXISTS color_primario TEXT DEFAULT '#10B981',
+ADD COLUMN IF NOT EXISTS color_secundario TEXT DEFAULT '#059669';
 
 CREATE TABLE IF NOT EXISTS public.personal (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -200,6 +203,18 @@ ADD COLUMN IF NOT EXISTS google_review_tipo_premio VARCHAR(20) DEFAULT 'regalo_f
 ADD COLUMN IF NOT EXISTS google_review_puntos INTEGER DEFAULT 100,
 ADD COLUMN IF NOT EXISTS google_review_regalo_nombre TEXT DEFAULT 'Bebida Gratis de la Casa',
 ADD COLUMN IF NOT EXISTS google_review_mensaje TEXT DEFAULT '¡Déjanos tu reseña de 5 estrellas en Google y recibe una Bebida Gratis al instante!';
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 7. POLÍTICA DE ACTUALIZACIÓN PÚBLICA PARA RESTAURANTES
+-- ─────────────────────────────────────────────────────────────────────────
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'restaurantes' AND policyname = 'Permitir update publico de restaurantes'
+  ) THEN
+    CREATE POLICY "Permitir update publico de restaurantes" ON public.restaurantes FOR UPDATE USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 
 

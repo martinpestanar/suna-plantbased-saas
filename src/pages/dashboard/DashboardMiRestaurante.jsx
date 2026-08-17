@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient.js';
 import { useAuth } from '../../router.jsx';
 import DashboardModulos from './DashboardModulos.jsx';
+import { NICHOS_CONFIG, getPresetConfig } from '../../config/nichosConfig.js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -92,6 +93,13 @@ export default function DashboardMiRestaurante() {
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
   const [aceptaReservas, setAceptaReservas] = useState(false);
+
+  // Form State: Apariencia & Nicho
+  const [nichoSeleccionado, setNichoSeleccionado] = useState('plant_based');
+  const [colorPrimario, setColorPrimario] = useState('#10B981');
+  const [colorSecundario, setColorSecundario] = useState('#059669');
+  const [modoOscuro, setModoOscuro] = useState(false);
+  const [estiloCards, setEstiloCards] = useState('rounded');
 
   // Form State: Configuración IA
   const [botNombre, setBotNombre] = useState('Mr. Green');
@@ -216,6 +224,20 @@ export default function DashboardMiRestaurante() {
         setYapeNumero(target.yape_numero || '');
         setYapeTitular(target.yape_titular || '');
         setPlinNumero(target.plin_numero || '');
+
+        // Apariencia & Nicho
+        const presetKey = target.nicho_preset || 'plant_based';
+        setNichoSeleccionado(presetKey);
+        const presetConfig = getPresetConfig(presetKey);
+
+        const prim = target.color_primario || presetConfig.paletaRecomendada.primary;
+        const sec = target.color_secundario || presetConfig.paletaRecomendada.secondary;
+        setColorPrimario(prim);
+        setColorSecundario(sec);
+
+        // Aplicar variables CSS globales dinámicamente
+        document.documentElement.style.setProperty('--color-primary', prim, 'important');
+        document.documentElement.style.setProperty('--color-secondary', sec, 'important');
 
         // Delivery
         setTipoCalculo(target.delivery_tipo_calculo || 'zonas');
@@ -391,6 +413,8 @@ export default function DashboardMiRestaurante() {
         yape_numero: yapeNumero,
         yape_titular: yapeTitular,
         plin_numero: plinNumero,
+        color_primario: colorPrimario,
+        color_secundario: colorSecundario,
         delivery_tipo_calculo: tipoCalculo,
         latitud: parseFloat(lat),
         longitud: parseFloat(lng),
@@ -401,6 +425,10 @@ export default function DashboardMiRestaurante() {
         delivery_pedido_minimo_global: parseFloat(pedidoMinimoGlobal),
         delivery_envio_gratis_desde_global: parseFloat(envioGratisDesdeGlobal),
       };
+
+      // Actualizar CSS global al guardar
+      document.documentElement.style.setProperty('--color-primary', colorPrimario);
+      document.documentElement.style.setProperty('--color-secondary', colorSecundario);
 
       const { error } = await supabase
         .from('restaurantes')
@@ -579,6 +607,7 @@ export default function DashboardMiRestaurante() {
       }}>
         {[
           { id: 'perfil', label: '🏢 Datos Negocio' },
+          { id: 'apariencia', label: '🎨 Apariencia & Nicho' },
           { id: 'modulos', label: '🧩 Módulos SaaS' },
           { id: 'ia', label: '🤖 Perfil IA' },
           { id: 'horarios', label: '🕒 Horarios & Calendario' },
@@ -1528,6 +1557,167 @@ export default function DashboardMiRestaurante() {
           </div>
         </div>
 
+      )}
+
+      {/* ────────────────────────────────────────────────────────────────── */}
+      {/* PESTAÑA: APARIENCIA & NICHO */}
+      {/* ────────────────────────────────────────────────────────────────── */}
+      {activeSubTab === 'apariencia' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Bloque 1: Nicho de Negocio (Asignado por el Plan / SuperAdmin) */}
+          <div style={{
+            background: 'var(--color-surface-2)', padding: 24, borderRadius: 20,
+            border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 16
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>
+                  📌 Nicho y Preset de tu Negocio
+                </h3>
+                <span style={{
+                  fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 8,
+                  background: '#10B98120', color: '#10B981', border: '1px solid #10B98140'
+                }}>
+                  🔒 Asignado por Administración / Plan
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: '6px 0 0' }}>
+                Tu cuenta está configurada en la modalidad <strong>{getPresetConfig(nichoSeleccionado).nombre}</strong>. Los términos de menú, botones y flujos del sistema están optimizados para este sector.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              {Object.values(NICHOS_CONFIG).map(nicho => {
+                const isSelected = nichoSeleccionado === nicho.id;
+                return (
+                  <div
+                    key={nicho.id}
+                    style={{
+                      padding: 16, borderRadius: 16,
+                      background: isSelected ? 'var(--color-surface)' : 'rgba(0,0,0,0.1)',
+                      border: `2px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-surface-3)'}`,
+                      display: 'flex', flexDirection: 'column', gap: 8, transition: 'all 200ms ease',
+                      opacity: isSelected ? 1 : 0.55,
+                      position: 'relative'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--color-on-surface)' }}>
+                        {nicho.nombre}
+                      </span>
+                      {isSelected && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 8,
+                          background: 'var(--color-primary)', color: '#fff'
+                        }}>
+                          ACTIVO
+                        </span>
+                      )}
+                    </div>
+
+                    <p style={{ fontSize: 11, color: 'var(--color-muted)', margin: 0, lineHeight: 1.4 }}>
+                      {nicho.descripcion}
+                    </p>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: nicho.paletaRecomendada.primary }} />
+                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: nicho.paletaRecomendada.secondary }} />
+                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: nicho.paletaRecomendada.bg, border: '1px solid #ccc' }} />
+                      <span style={{ fontSize: 10, color: 'var(--color-muted)', marginLeft: 4 }}>
+                        {nicho.paletaRecomendada.mode === 'dark' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Bloque 2: Personalización Manual de Marca */}
+          <div style={{
+            background: 'var(--color-surface-2)', padding: 24, borderRadius: 20,
+            border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 16
+          }}>
+            <div>
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>
+                🎛️ 2. Tuneo Manual de Paleta & Colores
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0' }}>
+                Ajusta los colores exactos de tu marca. Estos colores se reflejarán en tu Carta Digital QR y Dashboard.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                  Color Primario (Botones / Destacados)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="color"
+                    value={colorPrimario}
+                    onChange={e => setColorPrimario(e.target.value)}
+                    style={{ width: 44, height: 38, border: 'none', borderRadius: 8, cursor: 'pointer', background: 'transparent' }}
+                  />
+                  <input
+                    className="input-field"
+                    value={colorPrimario}
+                    onChange={e => setColorPrimario(e.target.value)}
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                  Color Secundario / Acentos
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="color"
+                    value={colorSecundario}
+                    onChange={e => setColorSecundario(e.target.value)}
+                    style={{ width: 44, height: 38, border: 'none', borderRadius: 8, cursor: 'pointer', background: 'transparent' }}
+                  />
+                  <input
+                    className="input-field"
+                    value={colorSecundario}
+                    onChange={e => setColorSecundario(e.target.value)}
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Aplicar Paleta Automática Sugerida y Guardar */}
+            <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  const cfg = getPresetConfig(nichoSeleccionado);
+                  setColorPrimario(cfg.paletaRecomendada.primary);
+                  setColorSecundario(cfg.paletaRecomendada.secondary);
+                  setModoOscuro(cfg.paletaRecomendada.mode === 'dark');
+                  showToast('Paleta recomendada restaurada');
+                }}
+                style={{ fontSize: 12, padding: '8px 14px' }}
+              >
+                ✨ Restablecer Paleta Recomendada del Nicho
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="btn-primary"
+                style={{ padding: '10px 20px', fontWeight: 800, fontSize: 13 }}
+              >
+                {saving ? 'Guardando...' : '💾 Guardar Cambios de Apariencia'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ────────────────────────────────────────────────────────────────── */}

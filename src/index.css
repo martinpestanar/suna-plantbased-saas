@@ -1,73 +1,53 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
-   SUNA GOURMET — DESIGN TOKENS (CSS Custom Properties)
-   Compatible con Tailwind CSS v4 @theme inline
+   SUNA GOURMET — DESIGN TOKENS DINÁMICOS MULTI-NICHO (2026)
+   Compatible con Tailwind CSS v4 y runtime JavaScript multi-tenant
    ───────────────────────────────────────────────────────────── */
-@theme {
-  /* Paleta Suna — Foresta Premium */
-  --color-primary:   #1B4332;
-  --color-primary-dk:#123024;
-  --color-secondary: #40916C;
-  --color-accent:    #D8F3DC;
-  --color-surface:   #FCFBF9;
-  --color-surface-2: #F5F2EB;
-  --color-surface-3: #EBE7DC;
-  --color-on-surface:#2D2A26;
-  --color-muted:     #8A8070;
-  --color-danger:    #D90429;
+
+:root {
+  /* Nicho por defecto: Plant-Based (Verde Esmeralda) / Inyectable dinámicamente */
+  --color-primary: #10B981;
+  --color-primary-dk: #059669;
+  --color-secondary: #047857;
+  --color-accent: #D1FAE5;
+  
+  /* Superficie y fondos por defecto (Dark Mode Nativo por defecto) */
+  --color-surface: #0F172A;
+  --color-surface-2: #1E293B;
+  --color-surface-3: #334155;
+  --color-on-surface: #F8FAFC;
+  --color-muted: #94A3B8;
+  --color-on-primary: #FFFFFF;
+  --color-on-secondary: #FFFFFF;
+  --color-danger: #EF4444;
 
   /* Tipografía */
   --font-display: 'Outfit', sans-serif;
-  --font-body:    'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
 
-  /* Radios MD3 */
+  /* Radios de curvatura MD3 */
   --radius-xs:  8px;
   --radius-sm:  12px;
   --radius-md:  16px;
   --radius-lg:  20px;
   --radius-xl:  28px;
-  --radius-2xl: 36px;
   --radius-full:9999px;
 
-  /* Duración de animaciones */
-  --duration-fast:  180ms;
-  --duration-base:  320ms;
-  --duration-slow:  420ms;
-
-  /* Curvas MD3 */
-  --ease-standard: cubic-bezier(0.2, 0.0, 0.0, 1.0);
-  --ease-decel:    cubic-bezier(0.0, 0.0, 0.2, 1.0);
-  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Transiciones fluidas */
+  --duration-fast: 180ms;
+  --duration-base: 320ms;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-decel: cubic-bezier(0.0, 0.0, 0.2, 1.0);
 }
 
-/* ─── Variables de Tema Dinámicas (Dark/Light) ─── */
-:root {
-  --color-primary: #D8F3DC;
-  --color-primary-dk: #B7E4C7;
-  --color-secondary: #40916C;
-  --color-accent: #1B4332;
-  --color-surface: #0F1A15;
-  --color-surface-2: #12251C;
-  --color-surface-3: #1B3527;
-  --color-on-surface: #FCFBF9;
-  --color-muted: #8F9E96;
-  --color-on-primary: #1B4332;
-  --color-on-secondary: #ffffff;
-}
-
+/* Modo Claro Dinámico (Se mantienen los colores primarios elegidos por el nicho) */
 .light {
-  --color-primary: #1B4332;
-  --color-primary-dk: #123024;
-  --color-secondary: #40916C;
-  --color-accent: #EBF5EF;
   --color-surface: #FCFBF9;
   --color-surface-2: #F5F2EB;
   --color-surface-3: #EBE7DC;
   --color-on-surface: #2D2A26;
   --color-muted: #8A8070;
-  --color-on-primary: #FCFBF9;
-  --color-on-secondary: #ffffff;
 }
 
 /* ─────────────────────────────────────────────────────────────

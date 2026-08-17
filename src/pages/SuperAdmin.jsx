@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth, useRouter } from '../router';
+import { NICHOS_CONFIG } from '../config/nichosConfig';
 
 const ALL_MODULES = [
   { id: 'pedidos', nombre: 'Pedidos & QR', icon: '📱' },
@@ -366,6 +367,50 @@ export default function SuperAdmin() {
                       <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748B' }}>
                         Slug: <code style={{ color: '#10B981' }}>/{res.slug || res.id.slice(0, 8)}</code>
                       </p>
+                    </div>
+
+                    {/* Selector rápido de Nicho Preset en SuperAdmin */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Nicho:</span>
+                      <select
+                        value={res.nicho_preset || 'plant_based'}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          const presetCfg = NICHOS_CONFIG[val] || NICHOS_CONFIG.plant_based;
+                          
+                          setRestaurantes(prev => prev.map(r => r.id === res.id ? { 
+                            ...r, 
+                            nicho_preset: val,
+                            color_primario: presetCfg.paletaRecomendada.primary,
+                            color_secundario: presetCfg.paletaRecomendada.secondary 
+                          } : r));
+
+                          const activeSavedId = localStorage.getItem('suna_active_restaurant');
+                          if (res.id === activeSavedId || !activeSavedId) {
+                            document.documentElement.style.setProperty('--color-primary', presetCfg.paletaRecomendada.primary, 'important');
+                            document.documentElement.style.setProperty('--color-secondary', presetCfg.paletaRecomendada.secondary, 'important');
+                          }
+
+                          try {
+                            const { error } = await supabase.from('restaurantes').update({ 
+                              nicho_preset: val,
+                              color_primario: presetCfg.paletaRecomendada.primary,
+                              color_secundario: presetCfg.paletaRecomendada.secondary
+                            }).eq('id', res.id);
+                            if (error) throw error;
+                          } catch (err) {
+                            console.error("Error al actualizar nicho en SuperAdmin:", err);
+                          }
+                        }}
+                        style={{
+                          background: '#0B130E', color: '#10B981', border: '1px solid #1E2E25',
+                          borderRadius: 8, padding: '4px 8px', fontSize: 12, fontWeight: 800, outline: 'none'
+                        }}
+                      >
+                        {Object.values(NICHOS_CONFIG).map(n => (
+                          <option key={n.id} value={n.id}>{n.nombre}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 

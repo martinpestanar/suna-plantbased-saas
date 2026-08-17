@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient';
+import { getPresetConfig } from './config/nichosConfig';
 
 /* ═══════════════════════════════════════════════════════════
    ROUTER CONTEXT — SPA Navigation sin dependencias externas
@@ -180,6 +181,29 @@ export function AppProvider({ children }) {
       setResLoading(false);
     }
   };
+
+  /* ── Aplicación Global Completa de Paleta y Nicho ── */
+  useEffect(() => {
+    if (!activeRestaurant) return;
+    const presetKey = activeRestaurant.nicho_preset || 'plant_based';
+    const presetConfig = getPresetConfig(presetKey);
+    const paleta = presetConfig.paletaRecomendada;
+
+    const prim = activeRestaurant.color_primario || paleta.primary;
+    const sec = activeRestaurant.color_secundario || paleta.secondary;
+
+    const root = document.documentElement;
+    root.style.setProperty('--color-primary', prim, 'important');
+    root.style.setProperty('--color-primary-dk', paleta.primaryDk || prim, 'important');
+    root.style.setProperty('--color-secondary', sec, 'important');
+    root.style.setProperty('--color-surface', paleta.surface, 'important');
+    root.style.setProperty('--color-surface-2', paleta.surface2 || paleta.bg, 'important');
+    root.style.setProperty('--color-surface-3', paleta.surface3, 'important');
+    root.style.setProperty('--color-on-surface', paleta.text, 'important');
+    root.style.setProperty('--color-muted', paleta.textMuted || '#64748B', 'important');
+    root.style.setProperty('--sidebar-bg', paleta.sidebarBg, 'important');
+    root.style.setProperty('--sidebar-text', paleta.sidebarText, 'important');
+  }, [activeRestaurant]);
 
   const selectRestaurant = useCallback((restaurant) => {
     setActiveRestaurant(restaurant);

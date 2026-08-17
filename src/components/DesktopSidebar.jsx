@@ -38,11 +38,13 @@ export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onL
       flexDirection: 'column',
       gap: 20,
       padding: '30px 20px',
-      background: '#0D2118',
+      background: 'var(--sidebar-bg, #0D2118)',
+      color: 'var(--sidebar-text, #ffffff)',
       height: '100dvh',
       flexShrink: 0,
       borderRight: '1px solid rgba(255,255,255,0.08)',
-      boxSizing: 'border-box'
+      boxSizing: 'border-box',
+      transition: 'background 300ms ease'
     }}>
 
       {/* Marca */}
