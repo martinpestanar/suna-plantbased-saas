@@ -101,10 +101,20 @@ const IcoPremios = ({ active }) => (
   </svg>
 );
 
+const IcoSalon = ({ active }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke={active ? 'var(--color-primary)' : 'var(--color-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="3" y1="9" x2="21" y2="9" />
+    <line x1="9" y1="21" x2="9" y2="9" />
+  </svg>
+);
+
 const MOBILE_TABS = [
   { id: 'inicio',     label: 'Inicio',      Icon: IcoHome },
   { id: 'pedidos',    label: 'Pedidos',     Icon: IcoPedidos },
   { id: 'carta',      label: 'Carta',       Icon: IcoCarta },
+  { id: 'salon',      label: 'Salón',       Icon: IcoSalon },
 ];
 
 const TABS = [
@@ -297,6 +307,7 @@ export default function Dashboard() {
           activeTab={activeTab} 
           onTabSelect={switchTab} 
           onLogout={logout} 
+          allowedModules={allowedModules}
         />
         
         <div className="desktop-main-layout">
@@ -448,10 +459,11 @@ export default function Dashboard() {
             gap: 0,
             margin: '8px 16px calc(6px + env(safe-area-inset-bottom))',
             borderRadius: '24px',
-            background: 'rgba(27, 45, 36, 0.9)',
+            background: 'var(--dock-bg, rgba(255, 255, 255, 0.92))',
             backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 8px 32px rgba(10, 20, 15, 0.5)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid var(--dock-border, rgba(226, 232, 240, 0.85))',
+            boxShadow: 'var(--dock-shadow, 0 12px 32px -4px rgba(15, 23, 42, 0.08))',
             padding: '8px 12px',
           }}>
             {MOBILE_TABS.map(({ id, label, Icon }) => {
@@ -474,7 +486,7 @@ export default function Dashboard() {
                       }}/>
                     )}
                   </div>
-                  <span className={`nav-label ${active ? 'active' : 'inactive'}`} style={{ color: active ? 'var(--color-accent)' : 'var(--color-muted)' }}>{label}</span>
+                  <span className={`nav-label ${active ? 'active' : 'inactive'}`} style={{ color: active ? 'var(--color-primary)' : 'var(--color-muted)' }}>{label}</span>
                 </button>
               );
             })}
@@ -488,7 +500,7 @@ export default function Dashboard() {
             </button>
           </div>
           <div className="home-indicator" style={{ background: 'transparent' }}>
-            <div className="home-indicator-bar" style={{ background: 'rgba(255,255,255,0.15)' }}/>
+            <div className="home-indicator-bar" style={{ background: 'var(--color-surface-3, #E2E8F0)' }}/>
           </div>
         </div>
 
@@ -496,20 +508,31 @@ export default function Dashboard() {
         {moreOpen && (
           <div style={{
             position: 'absolute', inset: 0, zIndex: 70,
-            background: 'rgba(15,26,21,0.72)', backdropFilter: 'blur(6px)',
+            background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'flex-end',
           }} onClick={e => { if (e.target === e.currentTarget) setMoreOpen(false); }}>
             <div style={{
-              width: '100%', background: 'var(--color-surface)',
-              borderRadius: '28px 28px 0 0',
+              width: '100%', background: 'var(--color-surface, #FFFFFF)',
+              borderRadius: '24px 24px 0 0',
               padding: '20px 20px 32px',
               animation: 'sheet-up 350ms cubic-bezier(0.34,1.56,0.64,1) both',
-              boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14
+              boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 14,
+              borderTop: '1px solid var(--color-surface-3, #E2E8F0)',
+              boxShadow: '0 -10px 40px rgba(0,0,0,0.1)'
             }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-surface-3)', margin: '0 auto 6px' }}/>
-              <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, color: 'var(--color-on-surface)', marginBottom: 6 }}>
-                Más Módulos
-              </p>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-surface-3)', margin: '0 auto 4px' }}/>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 900, color: 'var(--color-on-surface, #0F172A)', margin: 0 }}>
+                  Módulos de Gestión
+                </p>
+                <button
+                  onClick={() => setMoreOpen(false)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
+                >
+                  Cerrar ✕
+                </button>
+              </div>
               
               <div style={{
                 display: 'grid',
@@ -518,18 +541,33 @@ export default function Dashboard() {
                 marginTop: 6
               }}>
                 {[
-                  { id: 'carta',      label: 'Carta',       icon: '📋', desc: 'Menú & Platos' },
-                  { id: 'inventario', label: 'Inventario',  icon: '📦', desc: 'Stock & Insumos' },
-                  { id: 'finanzas',   label: 'Finanzas',    icon: '💵', desc: 'Caja & Gastos' },
-                  { id: 'marketing',  label: 'Marketing',   icon: '⚡', desc: 'IA & WhatsApp' },
-                  { id: 'delivery',   label: 'Delivery',    icon: '🛵', desc: 'Despachos' },
-                  { id: 'clientes',   label: 'Clientes',    icon: '👥', desc: 'CRM' },
-                  { id: 'premios',    label: 'Premios',     icon: '🎁', desc: 'Puntos' },
-                  { id: 'salon',      label: 'Salón',       icon: '🪑', desc: 'Mesas & Mozos' },
-                  { id: 'metricas',   label: 'Métricas',    icon: '📊', desc: 'Ventas' },
-                  { id: 'modulos',    label: 'Módulos',     icon: '🧩', desc: 'Suscripciones' },
-                  { id: 'restaurante',label: 'Mi Negocio',  icon: '🏪', desc: 'Ajustes' },
-                ].map(item => (
+                  { id: 'carta',      label: 'Carta',       icon: <IcoCarta active={false}/>, desc: 'Menú & Platos' },
+                  { id: 'inventario', label: 'Inventario',  icon: <IcoInventario active={false}/>, desc: 'Stock & Insumos' },
+                  { id: 'finanzas',   label: 'Finanzas',    icon: <IcoFinanzas active={false}/>, desc: 'Caja & Gastos' },
+                  { id: 'marketing',  label: 'Marketing',   icon: <IcoMarketing active={false}/>, desc: 'Campañas' },
+                  { id: 'delivery',   label: 'Delivery',    icon: <IcoDelivery active={false}/>, desc: 'Despachos' },
+                  { id: 'clientes',   label: 'Clientes',    icon: <IcoClientes active={false}/>, desc: 'CRM' },
+                  { id: 'premios',    label: 'Premios',     icon: <IcoPremios active={false}/>, desc: 'Puntos' },
+                  { id: 'salon',      label: 'Salón',       icon: <IcoSalon active={false}/>, desc: 'Mesas & QR' },
+                  { id: 'metricas',   label: 'Métricas',    icon: <IcoMetricas active={false}/>, desc: 'Reportes' },
+                  { id: 'modulos',    label: 'Módulos',     icon: (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>
+                    </svg>
+                  ), desc: 'Planes' },
+                  { id: 'restaurante',label: 'Mi Negocio',  icon: (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                  ), desc: 'Ajustes' },
+                ]
+                .filter(item => {
+                  if (item.id === 'restaurante' || item.id === 'modulos') return true;
+                  if (!allowedModules || !Array.isArray(allowedModules)) return true;
+                  return allowedModules.includes(item.id);
+                })
+                .map(item => (
                   <button
                     key={item.id}
                     onClick={() => { switchTab(item.id); setMoreOpen(false); }}
@@ -539,21 +577,23 @@ export default function Dashboard() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 8,
-                      padding: '16px 8px',
-                      background: 'var(--color-surface-2)',
-                      border: '1px solid var(--color-surface-3)',
-                      borderRadius: 18,
+                      padding: '14px 8px',
+                      background: 'var(--color-surface-2, #F8FAFC)',
+                      border: '1px solid var(--color-surface-3, #E2E8F0)',
+                      borderRadius: 14,
                       cursor: 'pointer',
                       textAlign: 'center',
                       fontFamily: 'Plus Jakarta Sans, sans-serif',
-                      transition: 'all 150ms',
+                      transition: 'all 150ms ease',
                     }}
-                    onMouseDown={e => { e.currentTarget.style.background = 'var(--color-surface-3)'; }}
-                    onMouseUp={e => { e.currentTarget.style.background = 'var(--color-surface-2)'; }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-surface-3)'; }}
                   >
-                    <span style={{ fontSize: 24 }}>{item.icon}</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>{item.label}</p>
+                    <div style={{ color: 'var(--color-on-surface)' }}>
+                      {item.icon}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>{item.label}</p>
                       <p style={{ fontSize: 9, color: 'var(--color-muted)', margin: 0 }}>{item.desc}</p>
                     </div>
                   </button>

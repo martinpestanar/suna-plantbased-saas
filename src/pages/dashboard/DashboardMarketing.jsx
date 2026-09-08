@@ -187,11 +187,12 @@ export default function DashboardMarketing() {
   }, [selectedSegment, segments]);
 
   const fetchWeeklyPlanner = async () => {
+    if (!activeRestaurant?.id) return;
     try {
       const { data, error } = await supabase
         .from('planificador_semanal')
         .select('*')
-        .eq('restaurante_id', activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb');
+        .eq('restaurante_id', activeRestaurant.id);
       
       if (!error && data) {
         const mapping = {};
@@ -288,7 +289,7 @@ export default function DashboardMarketing() {
         .from('combo_del_dia')
         .insert([
           {
-            restaurante_id: activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb',
+            restaurante_id: activeRestaurant?.id,
             hamburguesa_id: selectedBurgerId,
             bebida_id: selectedDrinkId,
             precio_oferta: parseFloat(comboPromoPrice),
@@ -475,7 +476,7 @@ export default function DashboardMarketing() {
         await supabase
           .from('restaurante_info_contexto')
           .insert([{
-            restaurante_id: activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb',
+            restaurante_id: activeRestaurant?.id,
             clave: 'promocion_activa',
             contenido: instruction
           }]);
@@ -520,7 +521,7 @@ export default function DashboardMarketing() {
             promocion: promocionVal || 'un descuento especial',
             dia: diaSemanaVal || 'hoy',
             plantilla_mensaje: templateText,
-            business_id: activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb',
+            business_id: activeRestaurant?.id,
             cooldown_days: cooldownDays
           })
         });

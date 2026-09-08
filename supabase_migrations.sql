@@ -198,6 +198,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ALTER TABLE public.restaurantes
 ADD COLUMN IF NOT EXISTS google_review_activo BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS google_review_activo_delivery BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS google_review_min_pedidos_delivery INTEGER DEFAULT 2,
 ADD COLUMN IF NOT EXISTS google_maps_url TEXT DEFAULT 'https://maps.google.com',
 ADD COLUMN IF NOT EXISTS google_review_tipo_premio VARCHAR(20) DEFAULT 'regalo_fisico',
 ADD COLUMN IF NOT EXISTS google_review_puntos INTEGER DEFAULT 100,

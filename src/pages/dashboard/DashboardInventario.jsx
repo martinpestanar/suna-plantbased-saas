@@ -193,7 +193,7 @@ export default function DashboardInventario() {
           await supabase.from('restaurante_info_contexto').update({ contenido: nuevoContenido }).eq('id', ext.id);
         } else {
           await supabase.from('restaurante_info_contexto').insert([{
-            restaurante_id: activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb',
+            restaurante_id: activeRestaurant?.id,
             clave: 'platos_agotados',
             contenido: nuevoContenido
           }]);
@@ -240,7 +240,7 @@ export default function DashboardInventario() {
         await supabase
           .from('restaurante_info_contexto')
           .insert([{
-            restaurante_id: activeRestaurant?.id || '8c7a6e1a-1d5b-43ad-8d99-c990263f45bb',
+            restaurante_id: activeRestaurant?.id,
             clave: 'promocion_activa',
             contenido: promoInstruction.trim()
           }]);

@@ -40,6 +40,8 @@ export default function DashboardPremios() {
 
   // Estados de Campaña Google Reviews
   const [googleReviewActivo, setGoogleReviewActivo] = useState(false);
+  const [googleReviewActivoDelivery, setGoogleReviewActivoDelivery] = useState(true);
+  const [googleReviewMinPedidosDelivery, setGoogleReviewMinPedidosDelivery] = useState(2);
   const [googleMapsUrl, setGoogleMapsUrl] = useState('');
   const [googleReviewTipoPremio, setGoogleReviewTipoPremio] = useState('regalo_fisico');
   const [googleReviewPuntos, setGoogleReviewPuntos] = useState(100);
@@ -70,6 +72,8 @@ export default function DashboardPremios() {
     fetchPremios();
     if (activeRestaurant) {
       setGoogleReviewActivo(Boolean(activeRestaurant.google_review_activo));
+      setGoogleReviewActivoDelivery(activeRestaurant.google_review_activo_delivery !== false);
+      setGoogleReviewMinPedidosDelivery(activeRestaurant.google_review_min_pedidos_delivery ?? 2);
       setGoogleMapsUrl(activeRestaurant.google_maps_url || '');
       setGoogleReviewTipoPremio(activeRestaurant.google_review_tipo_premio || 'regalo_fisico');
       setGoogleReviewPuntos(activeRestaurant.google_review_puntos || 100);
@@ -86,6 +90,8 @@ export default function DashboardPremios() {
         .from('restaurantes')
         .update({
           google_review_activo: googleReviewActivo,
+          google_review_activo_delivery: googleReviewActivoDelivery,
+          google_review_min_pedidos_delivery: parseInt(googleReviewMinPedidosDelivery) || 2,
           google_maps_url: googleMapsUrl,
           google_review_tipo_premio: googleReviewTipoPremio,
           google_review_puntos: parseInt(googleReviewPuntos) || 100,
@@ -229,20 +235,43 @@ export default function DashboardPremios() {
             <span style={{ fontSize: 32 }}>⭐</span>
             <div>
               <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 18, fontWeight: 900, margin: 0, color: '#1D4ED8' }}>
-                Campaña de Reseñas en Google Maps (Exclusivo Salón)
+                Campaña de Reseñas en Google Maps (Salón & Delivery)
               </h3>
               <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: '2px 0 0' }}>
-                Configura el premio que recibirán tus clientes de mesa al mostrar su reseña de 5 estrellas en caja/recepción.
+                Configura los incentivos para captar reseñas positivas. En Salón se valida de forma presencial y en Delivery se solicita captura con Nombre y Fecha vía WhatsApp.
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 800 }}>Activar Campaña:</span>
-            <Toggle value={googleReviewActivo} onChange={setGoogleReviewActivo} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>🍽️ Activar Salón:</span>
+              <Toggle value={googleReviewActivo} onChange={setGoogleReviewActivo} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 800 }}>🛵 Activar Delivery:</span>
+              <Toggle value={googleReviewActivoDelivery} onChange={setGoogleReviewActivoDelivery} />
+            </div>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+              📦 Pedidos Mínimos en Delivery (Recurrencia)
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={googleReviewMinPedidosDelivery}
+              onChange={e => setGoogleReviewMinPedidosDelivery(e.target.value)}
+              placeholder="2"
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)', borderRadius: 12, color: 'var(--color-on-surface)', outline: 'none', fontSize: 12 }}
+            />
+            <span style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 4, display: 'block' }}>
+              Se solicitará la reseña solo a clientes con al menos este número de pedidos completados.
+            </span>
+          </div>
           <div>
             <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
               🔗 Enlace Directo a Reseña en Google Maps

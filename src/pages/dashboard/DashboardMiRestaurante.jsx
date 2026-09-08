@@ -94,12 +94,13 @@ export default function DashboardMiRestaurante() {
   const [direccion, setDireccion] = useState('');
   const [aceptaReservas, setAceptaReservas] = useState(false);
 
-  // Form State: Apariencia & Nicho
+  // Form State: Marca & Multimedia QR
+  const [logoUrl, setLogoUrl] = useState('');
+  const [bannerUrl, setBannerUrl] = useState('');
+  const [eslogan, setEslogan] = useState('');
   const [nichoSeleccionado, setNichoSeleccionado] = useState('plant_based');
-  const [colorPrimario, setColorPrimario] = useState('#10B981');
-  const [colorSecundario, setColorSecundario] = useState('#059669');
-  const [modoOscuro, setModoOscuro] = useState(false);
-  const [estiloCards, setEstiloCards] = useState('rounded');
+  const [colorPrimario, setColorPrimario] = useState('#059669');
+  const [colorSecundario, setColorSecundario] = useState('#10B981');
 
   // Form State: Configuración IA
   const [botNombre, setBotNombre] = useState('Mr. Green');
@@ -225,7 +226,11 @@ export default function DashboardMiRestaurante() {
         setYapeTitular(target.yape_titular || '');
         setPlinNumero(target.plin_numero || '');
 
-        // Apariencia & Nicho
+        // Marca & Multimedia
+        setLogoUrl(target.logo_url || target.logo || '');
+        setBannerUrl(target.banner_url || target.portada_url || '');
+        setEslogan(target.eslogan || target.descripcion || '');
+
         const presetKey = target.nicho_preset || 'plant_based';
         setNichoSeleccionado(presetKey);
         const presetConfig = getPresetConfig(presetKey);
@@ -234,10 +239,6 @@ export default function DashboardMiRestaurante() {
         const sec = target.color_secundario || presetConfig.paletaRecomendada.secondary;
         setColorPrimario(prim);
         setColorSecundario(sec);
-
-        // Aplicar variables CSS globales dinámicamente
-        document.documentElement.style.setProperty('--color-primary', prim, 'important');
-        document.documentElement.style.setProperty('--color-secondary', sec, 'important');
 
         // Delivery
         setTipoCalculo(target.delivery_tipo_calculo || 'zonas');
@@ -398,6 +399,9 @@ export default function DashboardMiRestaurante() {
         telefono,
         direccion,
         acepta_reservas: aceptaReservas,
+        logo_url: logoUrl,
+        banner_url: bannerUrl,
+        eslogan: eslogan,
         bot_nombre: botNombre,
         bot_tono: botTono,
         bot_emojis: botEmojis,
@@ -425,10 +429,6 @@ export default function DashboardMiRestaurante() {
         delivery_pedido_minimo_global: parseFloat(pedidoMinimoGlobal),
         delivery_envio_gratis_desde_global: parseFloat(envioGratisDesdeGlobal),
       };
-
-      // Actualizar CSS global al guardar
-      document.documentElement.style.setProperty('--color-primary', colorPrimario);
-      document.documentElement.style.setProperty('--color-secondary', colorSecundario);
 
       const { error } = await supabase
         .from('restaurantes')
@@ -558,30 +558,41 @@ export default function DashboardMiRestaurante() {
       {/* Header del Módulo */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 26 }}>🏪</span>
-          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 24, fontWeight: 900, color: 'var(--color-on-surface)', margin: 0 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: 'var(--color-accent, #ECFDF5)',
+            border: '1px solid var(--color-surface-3, #E2E8F0)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--color-primary, #059669)', flexShrink: 0
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </div>
+          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 900, color: 'var(--color-on-surface, #0F172A)', margin: 0, letterSpacing: '-0.02em' }}>
             Mi Restaurante
           </h1>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--color-muted)', margin: 0 }}>
-          Administra el perfil de tu negocio, ajusta la personalidad de tu Asistente IA, configura Horarios por turnos y Delivery GPS.
+        <p style={{ fontSize: 13, color: 'var(--color-muted, #64748B)', margin: 0, lineHeight: 1.4 }}>
+          Administra el perfil de tu local, identidad visual de marca, horarios operativos y configuración general.
         </p>
       </div>
 
       {/* Alerta de Cierre de Emergencia Activo */}
       {cierreEmergenciaActivo && (
         <div style={{
-          background: 'rgba(217,4,41,0.15)', border: '1.5px solid #D90429',
-          borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'rgba(217,4,41,0.1)', border: '1.5px solid #D90429',
+          borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           gap: 12
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 22 }}>🚨</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>🚨</span>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 900, color: '#D90429', margin: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 900, color: '#D90429', margin: 0 }}>
                 CIERRE DE EMERGENCIA ACTIVO
               </p>
-              <p style={{ fontSize: 12, color: 'var(--color-on-surface)', margin: 0 }}>
+              <p style={{ fontSize: 11, color: 'var(--color-on-surface)', margin: 0 }}>
                 El Bot pausará la toma de pedidos informando: "{cierreEmergenciaMotivo}"
               </p>
             </div>
@@ -590,8 +601,8 @@ export default function DashboardMiRestaurante() {
             type="button"
             onClick={() => { setCierreEmergenciaActivo(false); handleSave(); }}
             style={{
-              padding: '8px 14px', borderRadius: 10, background: '#D90429', color: '#fff',
-              border: 'none', fontWeight: 800, fontSize: 12, cursor: 'pointer', flexShrink: 0
+              padding: '6px 12px', borderRadius: 8, background: '#D90429', color: '#fff',
+              border: 'none', fontWeight: 800, fontSize: 11, cursor: 'pointer', flexShrink: 0
             }}
           >
             Reabrir Ahora
@@ -599,21 +610,96 @@ export default function DashboardMiRestaurante() {
         </div>
       )}
 
-      {/* Navegación por Sub-pestañas */}
+      {/* Navegación por Sub-pestañas (Pill Scroll Bar 100% Mobile-First) */}
       <div style={{
-        display: 'flex', gap: 8, background: 'var(--color-surface-2)',
-        padding: 6, borderRadius: 16, border: '1px solid var(--color-surface-3)',
-        overflowX: 'auto'
+        display: 'flex',
+        gap: 6,
+        background: 'var(--color-surface-2, #F8FAFC)',
+        padding: '5px',
+        borderRadius: 14,
+        border: '1px solid var(--color-surface-3, #E2E8F0)',
+        overflowX: 'auto',
+        whiteSpace: 'nowrap',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none'
       }}>
         {[
-          { id: 'perfil', label: '🏢 Datos Negocio' },
-          { id: 'apariencia', label: '🎨 Apariencia & Nicho' },
-          { id: 'modulos', label: '🧩 Módulos SaaS' },
-          { id: 'ia', label: '🤖 Perfil IA' },
-          { id: 'horarios', label: '🕒 Horarios & Calendario' },
-          { id: 'delivery', label: '🛵 Delivery & GPS' },
-          { id: 'personal', label: '👥 Personal & Equipo' },
-          { id: 'pagos', label: '💳 Métodos de Pago' },
+          { 
+            id: 'perfil', 
+            label: 'Datos Negocio', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2" />
+                <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" />
+              </svg>
+            ) 
+          },
+          { 
+            id: 'marca', 
+            label: 'Logo & Portada', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            ) 
+          },
+          { 
+            id: 'modulos', 
+            label: 'Módulos SaaS', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>
+              </svg>
+            ) 
+          },
+          { 
+            id: 'ia', 
+            label: 'Perfil IA', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+            ) 
+          },
+          { 
+            id: 'horarios', 
+            label: 'Horarios', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            ) 
+          },
+          { 
+            id: 'delivery', 
+            label: 'Delivery & GPS', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="3" width="15" height="13" rx="2" ry="2" /><polygon points="16 8 20 8 23 11 23 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
+              </svg>
+            ) 
+          },
+          { 
+            id: 'personal', 
+            label: 'Equipo', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            ) 
+          },
+          { 
+            id: 'pagos', 
+            label: 'Pagos', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
+            ) 
+          },
         ].map(tab => {
           const active = activeSubTab === tab.id;
           return (
@@ -621,15 +707,26 @@ export default function DashboardMiRestaurante() {
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id)}
               style={{
-                flex: 1, minWidth: 120, padding: '10px 14px', borderRadius: 12,
-                background: active ? 'var(--color-surface)' : 'transparent',
-                border: active ? '1px solid var(--color-surface-3)' : '1px solid transparent',
-                color: active ? 'var(--color-primary)' : 'var(--color-muted)',
-                fontWeight: active ? 800 : 600, fontSize: 13, cursor: 'pointer',
-                transition: 'all 150ms', whiteSpace: 'nowrap'
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '8px 14px',
+                borderRadius: 10,
+                background: active ? 'var(--color-surface, #FFFFFF)' : 'transparent',
+                border: active ? '1px solid var(--color-surface-3, #E2E8F0)' : '1px solid transparent',
+                color: active ? 'var(--color-primary, #059669)' : 'var(--color-muted, #64748B)',
+                fontWeight: active ? 800 : 600,
+                fontSize: 12,
+                cursor: 'pointer',
+                boxShadow: active ? '0 2px 6px rgba(15, 23, 42, 0.05)' : 'none',
+                transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             >
-              {tab.label}
+              <span style={{ display: 'flex', alignItems: 'center', color: active ? 'var(--color-primary, #059669)' : 'var(--color-muted, #94A3B8)' }}>
+                {tab.icon}
+              </span>
+              <span>{tab.label}</span>
             </button>
           );
         })}
@@ -1560,160 +1657,156 @@ export default function DashboardMiRestaurante() {
       )}
 
       {/* ────────────────────────────────────────────────────────────────── */}
-      {/* PESTAÑA: APARIENCIA & NICHO */}
       {/* ────────────────────────────────────────────────────────────────── */}
-      {activeSubTab === 'apariencia' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Bloque 1: Nicho de Negocio (Asignado por el Plan / SuperAdmin) */}
+      {/* PESTAÑA: LOGO & PORTADA (BRAND ASSETS HUB) */}
+      {/* ────────────────────────────────────────────────────────────────── */}
+      {activeSubTab === 'marca' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Bloque 1: Logo Oficial del Restaurante */}
           <div style={{
-            background: 'var(--color-surface-2)', padding: 24, borderRadius: 20,
-            border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 16
+            background: 'var(--color-surface, #FFFFFF)', padding: 22, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: 16
           }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>
-                  📌 Nicho y Preset de tu Negocio
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface, #0F172A)' }}>
+                  🖼️ Logo Oficial del Local
                 </h3>
-                <span style={{
-                  fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 8,
-                  background: '#10B98120', color: '#10B981', border: '1px solid #10B98140'
-                }}>
-                  🔒 Asignado por Administración / Plan
-                </span>
+                <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '4px 0 0' }}>
+                  Este logo aparecerá en la cabecera de tu Carta Digital QR y en los comprobantes de pedido.
+                </p>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: '6px 0 0' }}>
-                Tu cuenta está configurada en la modalidad <strong>{getPresetConfig(nichoSeleccionado).nombre}</strong>. Los términos de menú, botones y flujos del sistema están optimizados para este sector.
-              </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-              {Object.values(NICHOS_CONFIG).map(nicho => {
-                const isSelected = nichoSeleccionado === nicho.id;
-                return (
-                  <div
-                    key={nicho.id}
-                    style={{
-                      padding: 16, borderRadius: 16,
-                      background: isSelected ? 'var(--color-surface)' : 'rgba(0,0,0,0.1)',
-                      border: `2px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-surface-3)'}`,
-                      display: 'flex', flexDirection: 'column', gap: 8, transition: 'all 200ms ease',
-                      opacity: isSelected ? 1 : 0.55,
-                      position: 'relative'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--color-on-surface)' }}>
-                        {nicho.nombre}
-                      </span>
-                      {isSelected && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 8,
-                          background: 'var(--color-primary)', color: '#fff'
-                        }}>
-                          ACTIVO
-                        </span>
-                      )}
-                    </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+              {/* Preview del Logo */}
+              <div style={{
+                width: 76, height: 76, borderRadius: 18,
+                background: 'var(--color-surface-2, #F8FAFC)',
+                border: '2px dashed var(--color-surface-3, #E2E8F0)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', flexShrink: 0, position: 'relative',
+                boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)'
+              }}>
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt="Logo Restaurante"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 28, color: 'var(--color-muted, #94A3B8)' }}>🏢</span>
+                )}
+              </div>
 
-                    <p style={{ fontSize: 11, color: 'var(--color-muted)', margin: 0, lineHeight: 1.4 }}>
-                      {nicho.descripcion}
-                    </p>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: nicho.paletaRecomendada.primary }} />
-                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: nicho.paletaRecomendada.secondary }} />
-                      <div style={{ width: 14, height: 14, borderRadius: '50%', background: nicho.paletaRecomendada.bg, border: '1px solid #ccc' }} />
-                      <span style={{ fontSize: 10, color: 'var(--color-muted)', marginLeft: 4 }}>
-                        {nicho.paletaRecomendada.mode === 'dark' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+              {/* Input URL y sugerencias */}
+              <div style={{ flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase' }}>
+                  URL de Imagen del Logo (PNG o WebP transparente recomendado)
+                </label>
+                <input
+                  type="url"
+                  className="input-field"
+                  placeholder="https://ejemplo.com/mi-logo.png"
+                  value={logoUrl}
+                  onChange={e => setLogoUrl(e.target.value)}
+                  style={{ width: '100%' }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Bloque 2: Personalización Manual de Marca */}
+          {/* Bloque 2: Portada / Banner de la Carta Digital */}
           <div style={{
-            background: 'var(--color-surface-2)', padding: 24, borderRadius: 20,
-            border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 16
+            background: 'var(--color-surface, #FFFFFF)', padding: 22, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: 16
           }}>
             <div>
-              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>
-                🎛️ 2. Tuneo Manual de Paleta & Colores
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface, #0F172A)' }}>
+                🌄 Banner de Portada (Carta Digital QR)
               </h3>
-              <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0' }}>
-                Ajusta los colores exactos de tu marca. Estos colores se reflejarán en tu Carta Digital QR y Dashboard.
+              <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '4px 0 0' }}>
+                Imagen panorámica que da la bienvenida a tus clientes al escanear el QR en mesa o abrir el enlace de Delivery.
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                  Color Primario (Botones / Destacados)
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
-                    type="color"
-                    value={colorPrimario}
-                    onChange={e => setColorPrimario(e.target.value)}
-                    style={{ width: 44, height: 38, border: 'none', borderRadius: 8, cursor: 'pointer', background: 'transparent' }}
-                  />
-                  <input
-                    className="input-field"
-                    value={colorPrimario}
-                    onChange={e => setColorPrimario(e.target.value)}
-                    style={{ textTransform: 'uppercase' }}
-                  />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Preview Panorámico */}
+              <div style={{
+                width: '100%', height: 140, borderRadius: 14,
+                background: bannerUrl ? `url(${bannerUrl}) center/cover no-repeat` : 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+                border: '1px solid var(--color-surface-3, #E2E8F0)',
+                position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'flex-end', padding: 14
+              }}>
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.65) 100%)'
+                }} />
+                <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10, background: '#FFFFFF',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1px solid rgba(255,255,255,0.8)', overflow: 'hidden'
+                  }}>
+                    {logoUrl ? <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span>🍽️</span>}
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 900, color: '#FFFFFF' }}>{nombre || 'Tu Restaurante'}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{eslogan || 'Menú Digital QR'}</p>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                  Color Secundario / Acentos
+              {/* Input URL Portada */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase' }}>
+                  URL de Imagen de Portada (Recomendado: 1200x500 px)
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
-                    type="color"
-                    value={colorSecundario}
-                    onChange={e => setColorSecundario(e.target.value)}
-                    style={{ width: 44, height: 38, border: 'none', borderRadius: 8, cursor: 'pointer', background: 'transparent' }}
-                  />
-                  <input
-                    className="input-field"
-                    value={colorSecundario}
-                    onChange={e => setColorSecundario(e.target.value)}
-                    style={{ textTransform: 'uppercase' }}
-                  />
-                </div>
+                <input
+                  type="url"
+                  className="input-field"
+                  placeholder="https://images.unsplash.com/photo-restaurante.jpg"
+                  value={bannerUrl}
+                  onChange={e => setBannerUrl(e.target.value)}
+                  style={{ width: '100%' }}
+                />
               </div>
             </div>
+          </div>
 
-            {/* Aplicar Paleta Automática Sugerida y Guardar */}
-            <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  const cfg = getPresetConfig(nichoSeleccionado);
-                  setColorPrimario(cfg.paletaRecomendada.primary);
-                  setColorSecundario(cfg.paletaRecomendada.secondary);
-                  setModoOscuro(cfg.paletaRecomendada.mode === 'dark');
-                  showToast('Paleta recomendada restaurada');
-                }}
-                style={{ fontSize: 12, padding: '8px 14px' }}
-              >
-                ✨ Restablecer Paleta Recomendada del Nicho
-              </button>
+          {/* Bloque 3: Eslogan y Mensaje de Bienvenida */}
+          <div style={{
+            background: 'var(--color-surface, #FFFFFF)', padding: 22, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: 14
+          }}>
+            <div>
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface, #0F172A)' }}>
+                ✍️ Eslogan de Marca / Mensaje al Comensal
+              </h3>
+              <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '4px 0 0' }}>
+                Frase breve o propuesta de valor que se visualiza debajo del nombre del restaurante.
+              </p>
+            </div>
 
+            <input
+              type="text"
+              className="input-field"
+              placeholder="Ej: Hamburguesas artesanales, papas rústicas y cervezas de autor 🍔🍺"
+              value={eslogan}
+              onChange={e => setEslogan(e.target.value)}
+              style={{ width: '100%' }}
+            />
+
+            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
                 className="btn-primary"
-                style={{ padding: '10px 20px', fontWeight: 800, fontSize: 13 }}
+                style={{ padding: '10px 24px', fontWeight: 800, fontSize: 13, borderRadius: 10 }}
               >
-                {saving ? 'Guardando...' : '💾 Guardar Cambios de Apariencia'}
+                {saving ? 'Guardando...' : '💾 Guardar Logo & Portada'}
               </button>
             </div>
           </div>

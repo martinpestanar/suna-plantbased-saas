@@ -182,27 +182,29 @@ export function AppProvider({ children }) {
     }
   };
 
-  /* ── Aplicación Global Completa de Paleta y Nicho ── */
+  /* ── Aplicación Global Completa de Paleta Clean Light ── */
   useEffect(() => {
-    if (!activeRestaurant) return;
-    const presetKey = activeRestaurant.nicho_preset || 'plant_based';
-    const presetConfig = getPresetConfig(presetKey);
-    const paleta = presetConfig.paletaRecomendada;
-
-    const prim = activeRestaurant.color_primario || paleta.primary;
-    const sec = activeRestaurant.color_secundario || paleta.secondary;
-
     const root = document.documentElement;
-    root.style.setProperty('--color-primary', prim, 'important');
-    root.style.setProperty('--color-primary-dk', paleta.primaryDk || prim, 'important');
-    root.style.setProperty('--color-secondary', sec, 'important');
-    root.style.setProperty('--color-surface', paleta.surface, 'important');
-    root.style.setProperty('--color-surface-2', paleta.surface2 || paleta.bg, 'important');
-    root.style.setProperty('--color-surface-3', paleta.surface3, 'important');
-    root.style.setProperty('--color-on-surface', paleta.text, 'important');
-    root.style.setProperty('--color-muted', paleta.textMuted || '#64748B', 'important');
-    root.style.setProperty('--sidebar-bg', paleta.sidebarBg, 'important');
-    root.style.setProperty('--sidebar-text', paleta.sidebarText, 'important');
+
+    // Colores limpios estándar Clean Light 2026
+    const primary = '#059669';
+    const primaryDk = '#047857';
+    const secondary = '#10B981';
+    const accent = '#ECFDF5';
+
+    root.style.setProperty('--color-primary', primary, 'important');
+    root.style.setProperty('--color-primary-dk', primaryDk, 'important');
+    root.style.setProperty('--color-secondary', secondary, 'important');
+    root.style.setProperty('--color-accent', accent, 'important');
+    root.style.setProperty('--color-surface', '#FFFFFF', 'important');
+    root.style.setProperty('--color-surface-2', '#F8FAFC', 'important');
+    root.style.setProperty('--color-surface-3', '#E2E8F0', 'important');
+    root.style.setProperty('--color-on-surface', '#0F172A', 'important');
+    root.style.setProperty('--color-muted', '#64748B', 'important');
+    root.style.setProperty('--sidebar-bg', '#FFFFFF', 'important');
+    root.style.setProperty('--sidebar-text', '#0F172A', 'important');
+    root.style.setProperty('--dock-bg', 'rgba(255, 255, 255, 0.92)', 'important');
+    root.style.setProperty('--dock-border', 'rgba(226, 232, 240, 0.85)', 'important');
   }, [activeRestaurant]);
 
   const selectRestaurant = useCallback((restaurant) => {
@@ -269,28 +271,48 @@ export function AppProvider({ children }) {
   }, [navigate]);
 
   /* ── Carga y suscripción en tiempo real de Módulos Habilitados ── */
-  const [allowedModules, setAllowedModules] = useState(['inicio', 'ordenes', 'pedidos', 'carta', 'inventario', 'finanzas', 'marketing', 'clientes', 'premios', 'salon', 'delivery', 'restaurante']);
+  const ALL_KEYS = ['inicio', 'ordenes', 'pedidos', 'carta', 'inventario', 'finanzas', 'marketing', 'clientes', 'premios', 'salon', 'delivery', 'metricas', 'modulos', 'restaurante'];
+  const [allowedModules, setAllowedModules] = useState(ALL_KEYS);
 
   useEffect(() => {
     if (!activeRestaurant?.id) return;
 
-    const ALL_KEYS = ['inicio', 'ordenes', 'pedidos', 'carta', 'inventario', 'finanzas', 'marketing', 'clientes', 'premios', 'salon', 'delivery', 'restaurante'];
+    // Mapa de módulos de la BD (restaurante_modulos.modulo) a los tabs/módulos de la UI
+    const DB_TO_NAV_MAP = {
+      pedidos: ['pedidos'],
+      carta: ['carta'],
+      inventario: ['inventario'],
+      fidelizacion: ['clientes', 'premios'],
+      delivery: ['delivery'],
+      marketing: ['marketing'],
+      reservas: ['salon'],
+      finanzas: ['finanzas'],
+      metricas: ['metricas'],
+      modulos: ['modulos'],
+    };
 
     const fetchAllowedModules = async () => {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('restaurante_modulos')
           .select('*')
           .eq('restaurante_id', activeRestaurant.id);
 
-        if (data && data.length > 0) {
-          const disabledKeys = data.filter(m => m.activo === false).map(m => m.modulo);
-          const filtered = ALL_KEYS.filter(k => !disabledKeys.includes(k));
+        if (!error && data && data.length > 0) {
+          const disabledTabs = new Set();
+          data.forEach(m => {
+            if (m.activo === false) {
+              const mapped = DB_TO_NAV_MAP[m.modulo] || [m.modulo];
+              mapped.forEach(tab => disabledTabs.add(tab));
+            }
+          });
+          const filtered = ALL_KEYS.filter(k => !disabledTabs.has(k));
           setAllowedModules(filtered);
         } else {
           setAllowedModules(ALL_KEYS);
         }
       } catch (err) {
+        console.error('Error fetching allowed modules:', err);
         setAllowedModules(ALL_KEYS);
       }
     };
@@ -306,7 +328,7 @@ export function AppProvider({ children }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeRestaurant]);
+  }, [activeRestaurant?.id]);
 
   const { queryParams } = urlInfo;
   const routerValue = { route, navigate, tenantSlug, clientIdentifier, queryParams };

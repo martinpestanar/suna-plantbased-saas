@@ -302,8 +302,9 @@ function ReservationsStatus({ restaurant }) {
    DASHBOARD HOME — Fusión de Inicio + Métricas Avanzadas
    ═══════════════════════════════════════════════════════════ */
 export default function DashboardHome({ onNavigate }) {
-  const { activeRestaurant } = useAuth();
+  const { activeRestaurant, allowedModules } = useAuth();
   const [viewMode, setViewMode] = useState('resumen'); // 'resumen' | 'analitica'
+  const isSalonEnabled = !allowedModules || allowedModules.includes('salon');
   const [metrics, setMetrics] = useState({
     ventasHoy: 0, ventasAyer: 0,
     pedidosHoy: 0, pedidosPendientes: 0,
@@ -378,40 +379,61 @@ export default function DashboardHome({ onNavigate }) {
         return k === new Date().toISOString().split('T')[0] ? 'Hoy' : labelMap[d.getDay()];
       });
 
-      const deliveryPct = ord7Days?.length ? Math.round((deliveryCount / ord7Days.length) * 100) : 60;
-      const maxIdx = ventasSemana.indexOf(Math.max(...ventasSemana));
-      const mejorDia = labelsSemana[maxIdx] || 'Sábado';
+      // Top Platos reales desde detalles_orden del restaurante activo
+      let topPlatos = [];
+      try {
+        const { data: detalles } = await supabase
+          .from('detalles_orden')
+          .select(`
+            cantidad,
+            item_id,
+            items_menu!inner (
+              nombre,
+              categoria_id,
+              categorias!inner (
+                restaurante_id
+              )
+            )
+          `)
+          .eq('items_menu.categorias.restaurante_id', activeRestaurant.id);
+
+        if (detalles && detalles.length > 0) {
+          const countMap = {};
+          detalles.forEach(d => {
+            const nombre = d.items_menu?.nombre;
+            if (nombre) {
+              countMap[nombre] = (countMap[nombre] || 0) + (d.cantidad || 1);
+            }
+          });
+          topPlatos = Object.entries(countMap)
+            .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+            .sort((a, b) => b.cantidad - a.cantidad)
+            .slice(0, 4);
+        }
+      } catch (errTop) {
+        console.warn('Detalle de platos no disponible o sin pedidos:', errTop);
+        topPlatos = [];
+      }
 
       setMetrics({
         ventasHoy, ventasAyer, pedidosHoy, pedidosPendientes,
         ventasSemana, labelsSemana, totalSemana,
         pedidosSemana: ord7Days?.length || 0,
         deliveryPct,
-        horaPico: '12:30 – 14:00',
+        horaPico: ordHoy?.length > 0 ? '12:30 – 14:00' : 'Sin datos',
         mejorDia,
-        topPlatos: [
-          { nombre: 'Hamburguesa Suna Gourmet', cantidad: 18 },
-          { nombre: 'Bowl Quinua Fest', cantidad: 14 },
-          { nombre: 'Kombucha Ancestral', cantidad: 11 },
-          { nombre: 'Andes Veggie', cantidad: 8 },
-        ]
+        topPlatos
       });
     } catch (e) {
       console.error('Error en métricas:', e);
-      // Demo fallback
       setMetrics({
-        ventasHoy: 1248.50, ventasAyer: 980.00,
-        pedidosHoy: 34, pedidosPendientes: 3,
-        ventasSemana: [620, 740, 810, 690, 920, 980, 1248],
+        ventasHoy: 0, ventasAyer: 0,
+        pedidosHoy: 0, pedidosPendientes: 0,
+        ventasSemana: [0, 0, 0, 0, 0, 0, 0],
         labelsSemana: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Hoy'],
-        totalSemana: 6008, pedidosSemana: 92,
-        deliveryPct: 65, horaPico: '12:30 – 14:00', mejorDia: 'Hoy',
-        topPlatos: [
-          { nombre: 'Hamburguesa Suna Gourmet', cantidad: 18 },
-          { nombre: 'Bowl Quinua Fest', cantidad: 14 },
-          { nombre: 'Kombucha Ancestral', cantidad: 11 },
-          { nombre: 'Andes Veggie', cantidad: 8 },
-        ],
+        totalSemana: 0, pedidosSemana: 0,
+        deliveryPct: 0, horaPico: 'Sin datos', mejorDia: 'Hoy',
+        topPlatos: [],
       });
     } finally {
       setLoading(false);
@@ -496,7 +518,7 @@ export default function DashboardHome({ onNavigate }) {
           sub="Por pedido hoy"
         />
         <BotStatus restaurant={activeRestaurant} onRefresh={fetchMetrics} />
-        <ReservationsStatus restaurant={activeRestaurant} />
+        {isSalonEnabled && <ReservationsStatus restaurant={activeRestaurant} />}
       </div>
 
       {/* ────────────────────────────────────────────────────────────────── */}
@@ -552,15 +574,15 @@ export default function DashboardHome({ onNavigate }) {
 
           {/* Columna Derecha: Platos más vendidos */}
           <div>
-            {metrics.topPlatos?.length > 0 && (
-              <div style={{
-                background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)',
-                borderRadius: 'var(--radius-xl)', padding: '24px',
-                height: '100%'
-              }}>
-                <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>
-                  🏆 Platos más vendidos hoy
-                </p>
+            <div style={{
+              background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)',
+              borderRadius: 'var(--radius-xl)', padding: '24px',
+              height: '100%'
+            }}>
+              <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>
+                🏆 Platos más vendidos hoy
+              </p>
+              {metrics.topPlatos?.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                   {metrics.topPlatos.map(({ nombre, cantidad }, i) => {
                     const max = metrics.topPlatos[0]?.cantidad ?? 1;
@@ -584,8 +606,14 @@ export default function DashboardHome({ onNavigate }) {
                     );
                   })}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', textAlign: 'center' }}>
+                  <span style={{ fontSize: 32, marginBottom: 8 }}>🍽️</span>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)', margin: '0 0 4px' }}>Sin ventas registradas hoy</p>
+                  <p style={{ fontSize: 11, color: 'var(--color-muted)', margin: 0 }}>Los platos favoritos del día aparecerán automáticamente aquí al recibir pedidos.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

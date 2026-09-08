@@ -112,7 +112,9 @@ export default function App() {
   const [activePromoSlide, setActivePromoSlide] = useState(0);
   const [promosOpen, setPromosOpen]             = useState(false);
   const [waCompleted, setWaCompleted]           = useState(() => Boolean(localStorage.getItem('wa_completed_mesa')));
-  const [googleCompleted, setGoogleCompleted]   = useState(false);
+  const [googleCompleted, setGoogleCompleted]   = useState(() => Boolean(localStorage.getItem('google_review_completed')));
+  const [reviewModalOpen, setReviewModalOpen]   = useState(false);
+  const [reviewStars, setReviewStars]           = useState(0);
   const [clubSubTab, setClubSubTab]             = useState('catalogo'); // Default 'catalogo' para antojar al usuario con los premios
 
   // ── Estados Club Lealtad ──
@@ -1249,7 +1251,10 @@ export default function App() {
                               </span>
                             </div>
                             <button
-                              onClick={() => setGoogleCompleted(true)}
+                              onClick={() => {
+                                setGoogleCompleted(true);
+                                localStorage.setItem('google_review_completed', 'true');
+                              }}
                               style={{ background: 'none', border: 'none', color: '#1E40AF', fontSize: 11, cursor: 'pointer', fontWeight: 700 }}
                               title="Descartar"
                             >
@@ -1267,27 +1272,27 @@ export default function App() {
                             display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid #BFDBFE'
                           }}>
                             <p style={{ fontSize: 9.5, fontWeight: 800, color: '#1E3A8A', margin: 0 }}>
-                              1️⃣ Escribe tu opinión de 5 estrellas en Google.
+                              1️⃣ Valora tu experiencia y escribe en Google.
                             </p>
                             <p style={{ fontSize: 9.5, fontWeight: 800, color: '#1E3A8A', margin: 0 }}>
                               2️⃣ <strong>Muestra la reseña en caja o a tu mesero</strong> para reclamar tu premio.
                             </p>
                           </div>
 
-                          <a
-                            href={restaurant?.google_maps_url || 'https://maps.google.com'}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => setGoogleCompleted(true)}
+                          <button
+                            onClick={() => {
+                              setReviewStars(0);
+                              setReviewModalOpen(true);
+                            }}
                             style={{
-                              background: '#2563EB', color: '#fff', textDecoration: 'none',
+                              background: '#2563EB', color: '#fff', border: 'none',
                               borderRadius: 10, padding: '8px 0', textAlign: 'center',
                               fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center',
-                              justifyContent: 'center', gap: 6, boxShadow: '0 3px 10px rgba(37,99,235,0.25)'
+                              justifyContent: 'center', gap: 6, boxShadow: '0 3px 10px rgba(37,99,235,0.25)', cursor: 'pointer'
                             }}
                           >
                             ⭐ Dejar Reseña en Google Maps
-                          </a>
+                          </button>
                         </div>
                       );
                     }
@@ -1371,6 +1376,57 @@ export default function App() {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* Banner de Reseñas para Delivery (Clientes Recurrentes) */}
+              {!isTableMode && restaurant?.google_review_activo_delivery !== false && !googleCompleted && clientOrders.length >= (restaurant?.google_review_min_pedidos_delivery || 2) && (
+                <div style={{ padding: '0 20px 10px' }}>
+                  <div style={{
+                    background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+                    border: '1.5px solid #3B82F6', borderRadius: 16, padding: '12px 14px',
+                    display: 'flex', flexDirection: 'column', gap: 8, boxShadow: '0 4px 14px rgba(59,130,246,0.12)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>⭐</span>
+                        <span style={{ fontSize: 12, fontWeight: 900, color: '#1E40AF' }}>
+                          ¡Gracias por tus {clientOrders.length} pedidos! Déjanos tu reseña en Google
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setGoogleCompleted(true);
+                          localStorage.setItem('google_review_completed', 'true');
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#1E40AF', fontSize: 11, cursor: 'pointer', fontWeight: 700 }}
+                        title="Descartar"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <span style={{ fontSize: 10.5, color: '#1D4ED8', fontWeight: 700 }}>
+                      {restaurant?.google_review_tipo_premio === 'puntos'
+                        ? `🎁 Recibe ${restaurant?.google_review_puntos || 100} puntos gratis sumados a tu Club enviando captura de tu reseña.`
+                        : `🎁 Recibe un ${restaurant?.google_review_regalo_nombre || 'Regalo Especial'} enviando la captura (Nombre y Fecha) por WhatsApp.`}
+                    </span>
+
+                    <button
+                      onClick={() => {
+                        setReviewStars(0);
+                        setReviewModalOpen(true);
+                      }}
+                      style={{
+                        background: '#2563EB', color: '#fff', border: 'none',
+                        borderRadius: 10, padding: '8px 0', textAlign: 'center',
+                        fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', gap: 6, boxShadow: '0 3px 10px rgba(37,99,235,0.25)', cursor: 'pointer'
+                      }}
+                    >
+                      ⭐ Calificar Experiencia y Reclamar Premio
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2327,6 +2383,142 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODAL ESCUDO ANTI-RESEÑAS NEGATIVAS Y DEVOLUCIÓN GOOGLE ── */}
+        {reviewModalOpen && (
+          <div className="sheet-overlay" style={{ zIndex: 1100 }} onClick={e => { if(e.target===e.currentTarget) setReviewModalOpen(false); }}>
+            <div className="sheet-container" style={{ padding: '24px 20px 28px', borderTopLeftRadius: 28, borderTopRightRadius: 28, background: 'var(--color-surface)', maxWidth: 480, margin: '0 auto' }}>
+              <div className="sheet-handle" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900, color: 'var(--color-on-surface)', margin: 0 }}>
+                  ¿Cómo fue tu experiencia en {restaurant?.nombre || 'Suna'}? ⭐
+                </h3>
+                <button onClick={() => setReviewModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--color-muted)' }}>✕</button>
+              </div>
+
+              <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: -6, marginBottom: 16 }}>
+                Selecciona tu valoración para continuar y activar tu premio:
+              </p>
+
+              {/* Selector de Estrellas */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    onClick={() => setReviewStars(star)}
+                    style={{
+                      background: 'none', border: 'none', fontSize: 34, cursor: 'pointer',
+                      transform: reviewStars >= star ? 'scale(1.18)' : 'scale(1)',
+                      transition: 'transform 0.15s ease',
+                      filter: reviewStars >= star ? 'drop-shadow(0 3px 8px rgba(245,158,11,0.45))' : 'grayscale(100%) opacity(0.3)'
+                    }}
+                  >
+                    ⭐
+                  </button>
+                ))}
+              </div>
+
+              {/* Rama POSITIVA (4-5 estrellas) */}
+              {reviewStars >= 4 && (
+                <div style={{ background: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: 18, padding: 16, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ fontSize: 14, fontWeight: 900, color: '#166534', margin: 0 }}>
+                    ¡Muchas gracias por tu excelente valoración! 🌟
+                  </p>
+                  <span style={{ fontSize: 11.5, color: '#15803D', fontWeight: 700 }}>
+                    {restaurant?.google_review_tipo_premio === 'puntos'
+                      ? `🎁 Premio: ${restaurant?.google_review_puntos || 100} puntos sumados a tu Club.`
+                      : `🎁 Premio: ${restaurant?.google_review_regalo_nombre || 'Bebida o Postre Gratis'}.`}
+                  </span>
+
+                  <div style={{ background: '#FFFFFF', borderRadius: 12, padding: '10px 12px', textAlign: 'left', border: '1px solid #BBF7D0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <p style={{ fontSize: 11, fontWeight: 900, color: '#14532D', margin: 0 }}>
+                      1️⃣ Publica tu opinión en Google Maps.
+                    </p>
+                    {isTableMode ? (
+                      <p style={{ fontSize: 11, fontWeight: 800, color: '#166534', margin: 0 }}>
+                        2️⃣ <strong>Muestra la pantalla al mesero o en caja</strong> para entregarte tu premio al instante.
+                      </p>
+                    ) : (
+                      <p style={{ fontSize: 11, fontWeight: 800, color: '#166534', margin: 0 }}>
+                        2️⃣ <strong>Tómale captura a tu reseña (donde se vea tu Nombre y Fecha)</strong> y envíala por WhatsApp para abonar tu beneficio.
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                    <a
+                      href={restaurant?.google_maps_url || 'https://maps.google.com'}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => {
+                        setGoogleCompleted(true);
+                        localStorage.setItem('google_review_completed', 'true');
+                      }}
+                      style={{
+                        background: '#2563EB', color: '#fff', textDecoration: 'none',
+                        borderRadius: 12, padding: '12px 0', textAlign: 'center',
+                        fontSize: 13, fontWeight: 900, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(37,99,235,0.25)'
+                      }}
+                    >
+                      ⭐ 1. Publicar Reseña en Google Maps
+                    </a>
+
+                    {!isTableMode && (
+                      <a
+                        href={`https://wa.me/${restaurant?.telefono?.replace(/[^0-9]/g, '') || ''}?text=${encodeURIComponent(`Hola! Dejé mi reseña en Google para ${restaurant?.nombre || 'Suna'}. Adjunto mi captura (Nombre y Fecha) para solicitar mi premio: ${restaurant?.google_review_tipo_premio === 'puntos' ? `${restaurant?.google_review_puntos || 100} puntos` : (restaurant?.google_review_regalo_nombre || 'Premio')}.`)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => {
+                          setGoogleCompleted(true);
+                          localStorage.setItem('google_review_completed', 'true');
+                          setReviewModalOpen(false);
+                        }}
+                        style={{
+                          background: '#25D366', color: '#fff', textDecoration: 'none',
+                          borderRadius: 12, padding: '12px 0', textAlign: 'center',
+                          fontSize: 12.5, fontWeight: 900, display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(37,211,102,0.25)'
+                        }}
+                      >
+                        📱 2. Enviar Captura por WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Rama FEEDBACK PRIVADO (1-3 estrellas) */}
+              {reviewStars > 0 && reviewStars <= 3 && (
+                <div style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: 18, padding: 16, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ fontSize: 13.5, fontWeight: 900, color: '#92400E', margin: 0 }}>
+                    Lamentamos mucho que tu experiencia no fuera la mejor 💛
+                  </p>
+                  <p style={{ fontSize: 11.5, color: '#B45309', margin: 0 }}>
+                    Queremos escucharte y corregirlo de inmediato. Por favor habla directamente con gerencia por WhatsApp para brindarte una solución personal.
+                  </p>
+
+                  <a
+                    href={`https://wa.me/${restaurant?.telefono?.replace(/[^0-9]/g, '') || ''}?text=${encodeURIComponent(`Hola! Tuve una experiencia de ${reviewStars} estrellas en mi pedido de ${restaurant?.nombre || 'Suna'} y quisiera conversar con gerencia sobre mi experiencia.`)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => {
+                      setReviewModalOpen(false);
+                    }}
+                    style={{
+                      background: '#D97706', color: '#fff', textDecoration: 'none',
+                      borderRadius: 12, padding: '12px 0', textAlign: 'center',
+                      fontSize: 12.5, fontWeight: 900, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(217,119,6,0.25)'
+                    }}
+                  >
+                    💬 Hablar directamente con Gerencia
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         )}

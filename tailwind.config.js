@@ -8,29 +8,35 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#1B4332',
-          dark: '#123024',
+          DEFAULT: 'var(--color-primary, #059669)',
+          dark: 'var(--color-primary-dk, #047857)',
+          light: 'var(--color-accent, #ECFDF5)',
         },
         secondary: {
-          DEFAULT: '#40916C',
+          DEFAULT: 'var(--color-secondary, #10B981)',
         },
         accent: {
-          DEFAULT: '#D8F3DC',
+          DEFAULT: 'var(--color-accent, #D1FAE5)',
+        },
+        surface: {
+          DEFAULT: 'var(--color-surface, #FFFFFF)',
+          subtle: 'var(--color-surface-2, #F8FAFC)',
+          border: 'var(--color-surface-3, #E2E8F0)',
         },
         dark: {
-          DEFAULT: '#2D2A26',
+          DEFAULT: 'var(--color-on-surface, #0F172A)',
         },
         cream: {
           DEFAULT: '#FCFBF9',
         },
         sand: {
-          DEFAULT: '#F5F2EB',
+          DEFAULT: '#F8FAFC',
         },
         clay: {
-          DEFAULT: '#EBE7DC',
+          DEFAULT: '#F1F5F9',
         },
         sunared: {
-          DEFAULT: '#D90429',
+          DEFAULT: '#EF4444',
         }
       },
       fontFamily: {

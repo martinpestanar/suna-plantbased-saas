@@ -4,8 +4,8 @@ export const NICHOS_CONFIG = {
   cafeteria: {
     id: 'cafeteria',
     nombre: '☕ Cafetería & Bakery',
-    badge: 'Cute & Warm',
-    descripcion: 'Diseño acogedor, ideal para cafés de especialidad, postres, desayunos y panaderías.',
+    badge: 'Warm Artisan',
+    descripcion: 'Diseño cálido y contemporáneo para cafés de especialidad, postres y panaderías.',
     terminos: {
       items: 'Bebidas & Antojos',
       item_singular: 'Bebida/Postre',
@@ -14,47 +14,47 @@ export const NICHOS_CONFIG = {
       horario_nota: 'Enfocado en Mañanas y Tardes',
     },
     paletaRecomendada: {
-      primary: '#D97706',        // Ámbar / Caramelo
-      primaryDk: '#B45309',      // Ámbar Oscuro
-      secondary: '#8C5A4C',      // Cappuccino / Moka
-      bg: '#FDF8F5',             // Crema Pastel
-      surface: '#FFFFFF',        // Blanco Limpio
-      surface2: '#F9F1EC',       // Crema Suave
-      surface3: '#EFE3DA',       // Borde Warm
-      text: '#4A2E2B',           // Café Oscuro
-      textMuted: '#8C6A64',      // Texto Muted Moka
-      accent: '#F3E8FF',         // Detalle Cute
-      sidebarBg: '#2D1B18',      // Sidebar Moka Oscuro Elegante
-      sidebarText: '#FDF8F5',    // Texto Sidebar Crema
+      primary: '#059669',        // Tech Emerald
+      primaryDk: '#047857',      // Emerald Oscuro
+      secondary: '#10B981',      // Emerald Mint
+      bg: '#F8FAFC',             // Slate 50
+      surface: '#FFFFFF',        // Blanco Puro
+      surface2: '#F1F5F9',       // Slate 100
+      surface3: '#E2E8F0',       // Borde Slate
+      text: '#0F172A',           // Slate 900
+      textMuted: '#64748B',      // Slate 500
+      accent: '#ECFDF5',         // Emerald Glow
+      sidebarBg: '#FFFFFF',      // Sidebar Clean
+      sidebarText: '#0F172A',
       mode: 'light',
-      cardRadius: '18px',
+      cardRadius: '14px',
     }
   },
   restobar: {
     id: 'restobar',
     nombre: '🍸 Restobar & Coctelería',
-    badge: 'Dark Neon',
-    descripcion: 'Modo oscuro sofisticado para bares, pubs, discotecas y coctelería nocturna.',
+    badge: 'Obsidian Glow',
+    descripcion: 'Modo oscuro sofisticado para bares, gastro-pubs y coctelería de autor.',
     terminos: {
       items: 'Tragos & Tapas',
       item_singular: 'Trago/Cóctel',
       staff_cocina: 'Bartender',
       carta: 'Bar Menu & Coctelería',
-      horario_nota: 'Enfocado en Noches (5 PM - 2 AM)',
+      horario_nota: 'Enfocado en Noches',
     },
     paletaRecomendada: {
-      primary: '#8B5CF6',        // Púrpura Neón
-      primaryDk: '#7C3AED',      // Púrpura Intenso
+      primary: '#8B5CF6',        // Violeta Eléctrico
+      primaryDk: '#7C3AED',
       secondary: '#EC4899',      // Magenta Nocturno
-      bg: '#090D16',             // Negro Neón Profundo
-      surface: '#0F172A',        // Azul Slate Oscuro
-      surface2: '#1E293B',       // Superficie Tarjeta
-      surface3: '#334155',       // Borde Neón
-      text: '#F8FAFC',           // Blanco Neón
-      textMuted: '#94A3B8',      // Texto Muted Nocturno
-      accent: '#10B981',         // Verde Bar
-      sidebarBg: '#050B14',      // Sidebar Midnight Ultra Dark
-      sidebarText: '#F8FAFC',    // Texto Sidebar Neón
+      bg: '#0B0F17',             // Obsidian Profundo
+      surface: '#111827',        // Slate Oscuro
+      surface2: '#161F30',       // Superficie 2
+      surface3: '#1F2937',       // Borde Oscuro Sutil
+      text: '#F8FAFC',           // Blanco Slate
+      textMuted: '#94A3B8',      // Slate Muted
+      accent: '#312E81',         // Glow Violeta
+      sidebarBg: '#0B0F17',
+      sidebarText: '#F8FAFC',
       mode: 'dark',
       cardRadius: '14px',
     }
@@ -62,8 +62,8 @@ export const NICHOS_CONFIG = {
   restaurante: {
     id: 'restaurante',
     nombre: '🍽️ Restaurante General',
-    badge: 'Classic Bistro',
-    descripcion: 'Diseño ejecutivo y profesional para restaurantes de mañanas, almuerzos y cenas.',
+    badge: 'Executive Slate',
+    descripcion: 'Diseño ejecutivo y ágil para restaurantes de alta rotación, bistrós y cadenas.',
     terminos: {
       items: 'Platos & Entradas',
       item_singular: 'Plato',
@@ -72,27 +72,27 @@ export const NICHOS_CONFIG = {
       horario_nota: 'Doble Turno (Almuerzo y Cena)',
     },
     paletaRecomendada: {
-      primary: '#1E3A8A',        // Azul Ejecutivo
-      primaryDk: '#1E40AF',      // Azul Rey
-      secondary: '#D97706',      // Ámbar Cálido
-      bg: '#F8FAFC',             // Gris Ejecutivo Muy Claro
-      surface: '#FFFFFF',        // Blanco Pura
-      surface2: '#F1F5F9',       // Gris Plata
-      surface3: '#E2E8F0',       // Borde Limpio
-      text: '#0F172A',           // Azul Marino Oscuro
-      textMuted: '#64748B',      // Texto Muted Ejecutivo
-      accent: '#2563EB',         // Azul Eléctrico
-      sidebarBg: '#0F172A',      // Sidebar Navy Ejecutivo
-      sidebarText: '#F8FAFC',    // Texto Sidebar Blanco
+      primary: '#2563EB',        // Royal Blue Tech
+      primaryDk: '#1D4ED8',
+      secondary: '#0D9488',      // Teal Modern
+      bg: '#F8FAFC',             // Slate Ultra Light
+      surface: '#FFFFFF',        // Blanco Puro
+      surface2: '#F1F5F9',       // Slate 100
+      surface3: '#E2E8F0',       // Slate 200
+      text: '#0F172A',           // Slate 900
+      textMuted: '#64748B',      // Slate 500
+      accent: '#DBEAFE',         // Blue 100
+      sidebarBg: '#FFFFFF',
+      sidebarText: '#0F172A',
       mode: 'light',
-      cardRadius: '12px',
+      cardRadius: '14px',
     }
   },
   plant_based: {
     id: 'plant_based',
     nombre: '🌱 Plant-Based & Saludable',
-    badge: 'Green Vitality',
-    descripcion: 'Estética fresca y ecológica para comida vegana, vegetariana, bowls y orgánicos.',
+    badge: 'Tech Emerald (Default)',
+    descripcion: 'Estética limpia, fresca y contemporánea para gastronomía saludable y orgánica.',
     terminos: {
       items: 'Platos Saludables',
       item_singular: 'Plato Veggie',
@@ -101,18 +101,18 @@ export const NICHOS_CONFIG = {
       horario_nota: 'Horarios de Todo el Día',
     },
     paletaRecomendada: {
-      primary: '#10B981',        // Verde Esmeralda
-      primaryDk: '#059669',      // Verde Bosque
-      secondary: '#047857',      // Verde Oscuro
-      bg: '#F0FDF4',             // Menta Ecológico
-      surface: '#FFFFFF',        // Blanco Limpio
-      surface2: '#E6F4EA',       // Menta Suave
-      surface3: '#C6E7CE',       // Borde Ecológico
-      text: '#064E3B',           // Verde Bosque Profundo
-      textMuted: '#52796F',      // Texto Muted Natura
-      accent: '#F59E0B',         // Sol Dorado
-      sidebarBg: '#0B2016',      // Sidebar Foresta Oscuro Original
-      sidebarText: '#E6F4EA',    // Texto Sidebar Menta
+      primary: '#059669',        // Emerald 600
+      primaryDk: '#047857',      // Emerald 700
+      secondary: '#10B981',      // Emerald 500
+      bg: '#F8FAFC',             // Slate 50
+      surface: '#FFFFFF',        // Blanco Puro
+      surface2: '#F0FDF4',       // Mint Ultra Soft
+      surface3: '#E2E8F0',       // Slate 200
+      text: '#0F172A',           // Slate 900
+      textMuted: '#64748B',      // Slate 500
+      accent: '#ECFDF5',         // Emerald 50
+      sidebarBg: '#FFFFFF',
+      sidebarText: '#0F172A',
       mode: 'light',
       cardRadius: '16px',
     }

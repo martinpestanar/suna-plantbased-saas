@@ -319,6 +319,7 @@ export default function DashboardLight() {
           activeTab={activeTab} 
           onTabSelect={switchTab} 
           onLogout={handleLogout} 
+          allowedModules={allowedModules}
         />
         
         <div className="desktop-main-layout">
@@ -593,9 +594,16 @@ export default function DashboardLight() {
                   { id: 'clientes',   label: 'Clientes',    icon: '👥', desc: 'CRM' },
                   { id: 'premios',    label: 'Premios',     icon: '🎁', desc: 'Puntos' },
                   { id: 'salon',      label: 'Salón',       icon: '🪑', desc: 'Mesas & Mozos' },
+                  { id: 'metricas',   label: 'Métricas',    icon: '📊', desc: 'Ventas' },
                   { id: 'modulos',    label: 'Módulos',     icon: '🧩', desc: 'Suscripciones' },
                   { id: 'restaurante',label: 'Mi Negocio',  icon: '🏪', desc: 'Ajustes' },
-                ].map(item => (
+                ]
+                .filter(item => {
+                  if (item.id === 'restaurante' || item.id === 'modulos') return true;
+                  if (!allowedModules || !Array.isArray(allowedModules)) return true;
+                  return allowedModules.includes(item.id);
+                })
+                .map(item => (
                   <button
                     key={item.id}
                     onClick={() => { switchTab(item.id); setMoreOpen(false); }}

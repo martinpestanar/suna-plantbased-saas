@@ -6,21 +6,29 @@
    ───────────────────────────────────────────────────────────── */
 
 :root {
-  /* Nicho por defecto: Plant-Based (Verde Esmeralda) / Inyectable dinámicamente */
-  --color-primary: #10B981;
-  --color-primary-dk: #059669;
-  --color-secondary: #047857;
-  --color-accent: #D1FAE5;
+  /* Nicho / Marca por defecto: Tech Emerald Minimalist */
+  --color-primary: #059669;
+  --color-primary-dk: #047857;
+  --color-secondary: #10B981;
+  --color-accent: #ECFDF5;
+  --color-accent-subtle: #D1FAE5;
   
-  /* Superficie y fondos por defecto (Dark Mode Nativo por defecto) */
-  --color-surface: #0F172A;
-  --color-surface-2: #1E293B;
-  --color-surface-3: #334155;
-  --color-on-surface: #F8FAFC;
-  --color-muted: #94A3B8;
+  /* Superficie y fondos por defecto (Clean Light 2026) */
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F8FAFC;
+  --color-surface-3: #E2E8F0;
+  --color-on-surface: #0F172A;
+  --color-muted: #64748B;
   --color-on-primary: #FFFFFF;
   --color-on-secondary: #FFFFFF;
   --color-danger: #EF4444;
+
+  /* Sidebar y Dock Variables */
+  --sidebar-bg: #FFFFFF;
+  --sidebar-text: #0F172A;
+  --dock-bg: rgba(255, 255, 255, 0.88);
+  --dock-border: rgba(226, 232, 240, 0.85);
+  --dock-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
 
   /* Tipografía */
   --font-display: 'Outfit', sans-serif;
@@ -41,13 +49,34 @@
   --ease-decel: cubic-bezier(0.0, 0.0, 0.2, 1.0);
 }
 
-/* Modo Claro Dinámico (Se mantienen los colores primarios elegidos por el nicho) */
+/* Modo Claro Explícito */
 .light {
-  --color-surface: #FCFBF9;
-  --color-surface-2: #F5F2EB;
-  --color-surface-3: #EBE7DC;
-  --color-on-surface: #2D2A26;
-  --color-muted: #8A8070;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F8FAFC;
+  --color-surface-3: #E2E8F0;
+  --color-on-surface: #0F172A;
+  --color-muted: #64748B;
+  --sidebar-bg: #FFFFFF;
+  --sidebar-text: #0F172A;
+  --dock-bg: rgba(255, 255, 255, 0.88);
+  --dock-border: rgba(226, 232, 240, 0.85);
+  --dock-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+}
+
+/* Modo Oscuro Obsidian Slate */
+.dark {
+  --color-surface: #0B0F17;
+  --color-surface-2: #111827;
+  --color-surface-3: #1F2937;
+  --color-on-surface: #F8FAFC;
+  --color-muted: #94A3B8;
+  --color-accent: #064E3B;
+  --color-accent-subtle: #065F46;
+  --sidebar-bg: #0B0F17;
+  --sidebar-text: #F8FAFC;
+  --dock-bg: rgba(17, 24, 39, 0.88);
+  --dock-border: rgba(255, 255, 255, 0.08);
+  --dock-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 4px 12px -2px rgba(0, 0, 0, 0.3);
 }
 
 /* ─────────────────────────────────────────────────────────────
