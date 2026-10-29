@@ -1,0 +1,19 @@
+{
+  "id": "8xiaIHrcHOTiRAnBav0mj",
+  "operations": [
+    {
+      "type": "updateNode",
+      "nodeId": "f7-format-info-rest",
+      "updates": {
+        "parameters.assignments.assignments": [
+          {
+            "id": "f7-info-text",
+            "name": "texto_ia",
+            "type": "string",
+            "value": "`={{\n  (() => {\n    const rawMsg = $('F7 - Extracción de Metadatos WhatsApp').first().json.message_content || ''"
+          }
+        ]
+      }
+    }
+  ]
+}

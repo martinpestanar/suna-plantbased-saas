@@ -38,7 +38,15 @@ export function parsePath() {
   if (['login', 'onboarding', 'superadmin'].includes(parts[0])) {
     return { slug: null, route: '/' + parts[0], clientIdentifier: null, queryParams };
   }
-  
+
+  // Si alguien entra a /{cualquier-negocio}/superadmin, forzar y limpiar a la ruta global /superadmin
+  if (parts.length >= 2 && parts[1] === 'superadmin') {
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState({}, '', '/superadmin' + (window.location.search || ''));
+    }
+    return { slug: null, route: '/superadmin', clientIdentifier: null, queryParams };
+  }
+
   const knownSubRoutes = ['dashboard', 'ordenar', 'pedidos', 'carta', 'finanzas', 'restaurante', 'inventario', 'marketing', 'clientes', 'premios', 'salon', 'delivery', 'modulos'];
   
   // If the first part itself is a known route (e.g., /dashboard/marketing or /dashboard)
@@ -138,45 +146,119 @@ export function AppProvider({ children }) {
   const fetchRestaurants = async () => {
     setResLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('restaurantes')
-        .select('*')
-        .order('nombre');
-      if (!error && data?.length) {
-        setRestaurants(data);
+      const userId = session?.user?.id;
+      const userEmail = session?.user?.email;
+
+      if (!userId) {
+        setRestaurants([]);
+        setActiveRestaurant(null);
+        return;
+      }
+
+      let data = [];
+
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+      let userAssignments = [];
+      if (isValidUUID) {
+        // 1. Consultar a qué restaurantes/negocios está asignado este usuario en `restaurante_usuarios`
+        const { data, error: assignErr } = await supabase
+          .from('restaurante_usuarios')
+          .select('restaurante_id, rol')
+          .eq('user_id', userId);
+
+        if (assignErr) {
+          console.error('Error al consultar restaurante_usuarios:', assignErr);
+        } else if (data) {
+          userAssignments = data;
+        }
+      }
+
+      let directIds = userAssignments?.map(a => a.restaurante_id) || [];
+
+      // Si es una sesión mock dev o sin asignación encontrada, verificamos si es dev
+      if (directIds.length === 0 && (userId === 'mock-dev-user-id' || userEmail?.includes('dev@') || userEmail?.includes('suna'))) {
+        const devTarget = localStorage.getItem('suna_dev_target'); // 'santos' o 'suna'
+        const isSantos = devTarget === 'santos' || tenantSlug === 'santos';
+        const defaultSlug = isSantos ? 'santos' : 'suna-plant-based';
         
-        // Determinar qué restaurante activar
+        const { data: devRes } = await supabase
+          .from('restaurantes')
+          .select('id')
+          .eq('slug', defaultSlug)
+          .maybeSingle();
+
+        if (devRes) {
+          directIds = [devRes.id];
+        }
+      }
+
+      if (directIds.length > 0) {
+        // Obtenemos los restaurantes asignados directamente
+        const { data: assignedRestaurants } = await supabase
+          .from('restaurantes')
+          .select('*')
+          .in('id', directIds);
+
+        if (assignedRestaurants && assignedRestaurants.length > 0) {
+          // Identificar las matrices de los negocios asignados
+          // Si un restaurante tiene parent_id, la matriz es parent_id. Si no, su propio id es la matriz.
+          const matrizIds = [...new Set(assignedRestaurants.map(r => r.parent_id || r.id))];
+
+          // Traer la matriz y TODAS las sucursales que pertenezcan ÚNICAMENTE a esa matriz
+          const { data: allBranches, error: branchesErr } = await supabase
+            .from('restaurantes')
+            .select('*')
+            .or(`id.in.(${matrizIds.join(',')}),parent_id.in.(${matrizIds.join(',')})`)
+            .order('created_at', { ascending: true });
+
+          if (!branchesErr && allBranches && allBranches.length > 0) {
+            data = allBranches;
+          } else {
+            data = assignedRestaurants;
+          }
+        }
+      }
+
+      if (data.length > 0) {
+        setRestaurants(data);
+
+        // Determinar qué sucursal activar
         const savedId = localStorage.getItem('suna_active_restaurant');
         let active = null;
-        
-        // 1. Priorizar si el slug de la URL coincide con alguno de los restaurantes del usuario
+
+        // 1. Priorizar si el slug de la URL coincide con alguna de las sucursales permitidas
         if (tenantSlug) {
           active = data.find(r => r.slug === tenantSlug);
         }
-        
-        // 2. Si no coincide, intentar con el guardado en localStorage
+
+        // 2. Si no coincide, intentar con el guardado en localStorage (siempre que pertenezca a este negocio)
         if (!active && savedId) {
           active = data.find(r => r.id === savedId);
         }
-        
-        // 3. Fallback al primero
+
+        // 3. Fallback al primero (matriz)
         if (!active) {
           active = data[0];
         }
 
         setActiveRestaurant(active);
-        
-        // Redirigir URL si no tiene slug pero el restaurante activo tiene uno
+
+        // Redirigir URL si no tiene slug o si el slug actual no pertenece a las sucursales de este usuario
         const currentPathInfo = parsePath();
-        if (!currentPathInfo.slug && active.slug) {
+        const isProtectedDashboard = !['login', 'onboarding', 'superadmin'].includes(currentPathInfo.route.replace('/', ''));
+        if (isProtectedDashboard && (!currentPathInfo.slug || currentPathInfo.slug !== active.slug)) {
           const targetRoute = currentPathInfo.route === '/' ? '/dashboard' : currentPathInfo.route;
           const browserPath = `/${active.slug}${targetRoute}`;
           window.history.pushState({}, '', browserPath);
           setUrlInfo({ slug: active.slug, route: targetRoute, clientIdentifier: null });
         }
+      } else {
+        setRestaurants([]);
+        setActiveRestaurant(null);
       }
     } catch (e) {
-      console.error('Error cargando restaurantes:', e);
+      console.error('Error cargando restaurantes del negocio:', e);
     } finally {
       setResLoading(false);
     }
@@ -219,15 +301,16 @@ export function AppProvider({ children }) {
 
   /* ── Navegación ── */
   const navigate = useCallback((newRoute) => {
-    const parts = newRoute.split('/').filter(Boolean);
+    const [pathPart, queryPart] = newRoute.split('?');
+    const parts = pathPart.split('/').filter(Boolean);
     let nextSlug = tenantSlug;
-    let nextRoute = newRoute;
+    let nextRoute = pathPart;
     let nextClient = null;
 
-    if (parts.length === 0 || newRoute === '/') {
+    if (parts.length === 0 || pathPart === '/') {
       nextSlug = null;
       nextRoute = '/';
-    } else if (['login', 'onboarding'].includes(parts[0])) {
+    } else if (['login', 'onboarding', 'superadmin'].includes(parts[0])) {
       nextSlug = null;
       nextRoute = '/' + parts[0];
     } else {
@@ -239,34 +322,43 @@ export function AppProvider({ children }) {
       }
     }
 
-    const browserPath = nextSlug 
+    const baseBrowserPath = nextSlug 
       ? `/${nextSlug}${nextRoute}${nextClient ? '/' + nextClient : ''}` 
       : nextRoute;
 
+    const browserPath = queryPart ? `${baseBrowserPath}?${queryPart}` : baseBrowserPath;
+
     window.history.pushState({}, '', browserPath);
-    setUrlInfo({ slug: nextSlug, route: nextRoute, clientIdentifier: nextClient });
+    setUrlInfo(parsePath());
   }, [tenantSlug]);
 
   /* ── Dev Login Bypass ── */
-  const loginAsDev = useCallback(() => {
+  const loginAsDev = useCallback((target = 'suna') => {
+    const isSantos = target === 'santos';
     const mockSession = {
       user: {
-        id: 'mock-dev-user-id',
-        email: 'dev@suna.com',
+        id: isSantos ? '7500b39d-9a67-4a47-b451-c373ac3d3b6f' : 'de2387cf-1e22-4e65-9be6-d3913b208cdc',
+        email: isSantos ? 'santos@suna.app' : 'demo@sunagreen.com',
       },
       access_token: 'mock-dev-token',
     };
     localStorage.setItem('suna_mock_session', JSON.stringify(mockSession));
+    localStorage.setItem('suna_dev_target', isSantos ? 'santos' : 'suna');
+    localStorage.removeItem('suna_active_restaurant');
     setSession(mockSession);
-    // Redirigir a dashboard
-    navigate(ROUTES.DASHBOARD);
+    const targetSlug = isSantos ? 'santos' : 'suna-plant-based';
+    navigate(`/${targetSlug}/dashboard`);
   }, [navigate]);
 
   /* ── Logout ── */
   const logout = useCallback(async () => {
     localStorage.removeItem('suna_mock_session');
+    localStorage.removeItem('suna_active_restaurant');
+    localStorage.removeItem('suna_dev_target');
     await supabase.auth.signOut();
     setSession(null);
+    setRestaurants([]);
+    setActiveRestaurant(null);
     navigate(ROUTES.LANDING);
   }, [navigate]);
 

@@ -730,7 +730,9 @@ export default function DashboardDelivery() {
             {/* Tarifas de Envío por Distancia */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Tarifa Base (S/.)</label>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>
+                  Tarifa Base ({activeRestaurant?.simbolo_moneda || 'S/'})
+                </label>
                 <input type="number" step="any" required value={tarifaBase} onChange={e => setTarifaBase(e.target.value)} className="input-field" style={{ fontSize: 12 }} />
               </div>
               <div>
@@ -738,7 +740,9 @@ export default function DashboardDelivery() {
                 <input type="number" step="any" required value={kmBase} onChange={e => setKmBase(e.target.value)} className="input-field" style={{ fontSize: 12 }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Costo Km Extra (S/.)</label>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>
+                  Costo Km Extra ({activeRestaurant?.simbolo_moneda || 'S/'})
+                </label>
                 <input type="number" step="any" required value={costoKmAdicional} onChange={e => setCostoKmAdicional(e.target.value)} className="input-field" style={{ fontSize: 12 }} />
               </div>
             </div>
@@ -750,11 +754,15 @@ export default function DashboardDelivery() {
                 <input type="number" step="any" required value={coberturaMaximaKm} onChange={e => setCoberturaMaximaKm(e.target.value)} className="input-field" style={{ fontSize: 12 }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Pedido Mínimo (S/.)</label>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>
+                  Pedido Mínimo ({activeRestaurant?.simbolo_moneda || 'S/'})
+                </label>
                 <input type="number" step="any" required value={pedidoMinimoGlobal} onChange={e => setPedidoMinimoGlobal(e.target.value)} className="input-field" style={{ fontSize: 12 }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>Envío Gratis desde (S/.)</label>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 5 }}>
+                  Envío Gratis desde ({activeRestaurant?.simbolo_moneda || 'S/'})
+                </label>
                 <input type="number" step="any" value={envioGratisDesdeGlobal} onChange={e => setEnvioGratisDesdeGlobal(e.target.value)} className="input-field" style={{ fontSize: 12 }} placeholder="Ninguno" />
               </div>
             </div>

@@ -130,7 +130,7 @@ const TABS = [
   { id: 'finanzas',   label: 'Finanzas',    Icon: IcoFinanzas },
 ];
 
-/* ── Selector de Restaurante (Multi-Tenant) ── */
+/* ── Selector de Restaurante / Sucursales (Multi-Branch) ── */
 function RestaurantPicker({ open, onClose, restaurants, active, onSelect }) {
   if (!open) return null;
   return (
@@ -146,8 +146,11 @@ function RestaurantPicker({ open, onClose, restaurants, active, onSelect }) {
         animation: 'sheet-up 350ms cubic-bezier(0.34,1.56,0.64,1) both',
       }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-surface-3)', margin: '0 auto 20px' }}/>
-        <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, color: 'var(--color-on-surface)', marginBottom: 16 }}>
-          Seleccionar Restaurante
+        <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, color: 'var(--color-on-surface)', marginBottom: 2 }}>
+          Sucursales de {active?.nombre || 'tu Negocio'}
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 16 }}>
+          Selecciona la sede activa para gestionar órdenes, salón y delivery
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '55vh', overflowY: 'auto' }}>
           {restaurants.map(r => (
@@ -170,8 +173,19 @@ function RestaurantPicker({ open, onClose, restaurants, active, onSelect }) {
                 <GrAd style={{ fontSize: 20, color: active?.id === r.id ? 'var(--color-primary)' : 'var(--color-muted)' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.nombre}</p>
-                {r.direccion && <p style={{ fontSize: 11, color: 'var(--color-muted)', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.direccion}</p>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-on-surface)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {r.nombre_sucursal || 'Sede Principal'}
+                  </p>
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 6,
+                    background: r.parent_id ? 'var(--color-surface-3)' : 'var(--color-accent)',
+                    color: r.parent_id ? 'var(--color-muted)' : 'var(--color-primary)',
+                  }}>
+                    {r.parent_id ? 'Sucursal' : 'Casa Matriz'}
+                  </span>
+                </div>
+                {r.direccion && <p style={{ fontSize: 11, color: 'var(--color-muted)', fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.direccion}</p>}
               </div>
               {active?.id === r.id && (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round">
@@ -322,16 +336,17 @@ export default function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               {/* Branch Picker */}
               <button
-                onClick={() => restaurants.length > 0 && setPickerOpen(true)}
+                onClick={() => restaurants.length > 1 && setPickerOpen(true)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   background: 'var(--color-surface)', border: '1px solid var(--color-surface-3)',
-                  borderRadius: 12, padding: '8px 14px', cursor: 'pointer',
+                  borderRadius: 12, padding: '8px 14px',
+                  cursor: restaurants.length > 1 ? 'pointer' : 'default',
                   fontSize: 13, fontWeight: 700, color: 'var(--color-on-surface)',
                   transition: 'all 150ms'
                 }}
               >
-                🏢 {activeRestaurant?.nombre || 'Seleccionar sucursal'} ▾
+                🏢 {activeRestaurant?.nombre} · {activeRestaurant?.nombre_sucursal || 'Sede Principal'} {restaurants.length > 1 ? `(${restaurants.length} sedes) ▾` : ''}
               </button>
               
               <Clock />
@@ -387,16 +402,17 @@ export default function Dashboard() {
 
             {/* Restaurant Selector */}
             <button
-              onClick={() => restaurants.length > 0 && setPickerOpen(true)}
+              onClick={() => restaurants.length > 1 && setPickerOpen(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 background: 'var(--color-surface-2)', border: '1.5px solid var(--color-surface-3)',
-                borderRadius: 16, padding: '8px 12px', cursor: 'pointer',
+                borderRadius: 16, padding: '8px 12px',
+                cursor: restaurants.length > 1 ? 'pointer' : 'default',
                 flex: 1, minWidth: 0, marginRight: 10,
                 transition: 'background 150ms',
               }}
-              onMouseDown={e => { e.currentTarget.style.background = 'var(--color-clay)'; }}
-              onMouseUp={e => { e.currentTarget.style.background = 'var(--color-surface-2)'; }}
+              onMouseDown={e => { if (restaurants.length > 1) e.currentTarget.style.background = 'var(--color-clay)'; }}
+              onMouseUp={e => { if (restaurants.length > 1) e.currentTarget.style.background = 'var(--color-surface-2)'; }}
             >
               <div style={{
                 width: 34, height: 34, borderRadius: 10, background: 'var(--color-clay)',
@@ -412,9 +428,13 @@ export default function Dashboard() {
                 }}>
                   {resLoading ? 'Cargando...' : (activeRestaurant?.nombre ?? 'Seleccionar restaurante')}
                 </p>
-                {restaurants.length > 1 && (
+                {restaurants.length > 1 ? (
                   <p style={{ fontSize: 10, color: 'var(--color-secondary)', fontWeight: 700 }}>
-                    {restaurants.length} sucursales · Cambiar ▾
+                    {activeRestaurant?.nombre_sucursal || 'Sede Principal'} · {restaurants.length} sucursales ▾
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 10, color: 'var(--color-muted)', fontWeight: 600 }}>
+                    {activeRestaurant?.nombre_sucursal || 'Sede Principal'}
                   </p>
                 )}
               </div>

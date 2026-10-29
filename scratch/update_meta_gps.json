@@ -1,0 +1,71 @@
+{
+  "id": "8xiaIHrcHOTiRAnBav0mj",
+  "operations": [
+    {
+      "type": "updateNode",
+      "nodeName": "F7 - Extracción de Metadatos WhatsApp",
+      "updates": {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "f7-jid",
+                "name": "jid_destino",
+                "type": "string",
+                "value": "={{ $('F7 - Webhook Entrada').first().json.body.data.key.remoteJid || $('F7 - Webhook Entrada').first().json.body.sender }}"
+              },
+              {
+                "id": "f7-tel",
+                "name": "telefono",
+                "type": "string",
+                "value": "={{ $('F7 - Webhook Entrada').first().json.body.data.key.remoteJid.split('@')[0] }}"
+              },
+              {
+                "id": "f7-nom",
+                "name": "nombre_cliente",
+                "type": "string",
+                "value": "={{ $('F7 - Webhook Entrada').first().json.body.data.pushName || 'Cliente' }}"
+              },
+              {
+                "id": "f7-content",
+                "name": "message_content",
+                "type": "string",
+                "value": "={{ (() => {\n  const msg = $('F7 - Webhook Entrada').first().json.body?.data?.message;\n  if (msg?.locationMessage || msg?.liveLocationMessage) {\n    const loc = msg.locationMessage || msg.liveLocationMessage;\n    const lat = loc.degreesLatitude || loc.latitude;\n    const lng = loc.degreesLongitude || loc.longitude;\n    return '[UBICACION_GPS: ' + lat + ', ' + lng + (loc.name ? ' - ' + loc.name : '') + ']';\n  }\n  return msg?.conversation || msg?.extendedTextMessage?.text || msg?.imageMessage?.caption || msg?.buttonsResponseMessage?.selectedButtonId || msg?.listResponseMessage?.singleSelectReply?.selectedRowId || msg?.templateButtonReplyMessage?.selectedId || '';\n})() }}"
+              },
+              {
+                "id": "f7-inst",
+                "name": "nombre_instancia",
+                "type": "string",
+                "value": "={{ $('F7 - Webhook Entrada').first().json.body.instance }}"
+              },
+              {
+                "id": "f7-type",
+                "name": "tipo_archivo",
+                "type": "string",
+                "value": "={{ $('F7 - Webhook Entrada').first().json.body.data.messageType === 'imageMessage' ? 'imagen' : ($('F7 - Webhook Entrada').first().json.body.data.messageType === 'audioMessage' ? 'audio' : 'texto') }}"
+              },
+              {
+                "id": "f7-key",
+                "name": "apikey",
+                "type": "string",
+                "value": "={{ $('F7 - Obtener Restaurante por Instancia').first().json.evolution_api_key || $('F7 - Webhook Entrada').first().json.body.apikey }}"
+              },
+              {
+                "id": "f7-rest-tel",
+                "name": "telefono_restaurante",
+                "type": "string",
+                "value": "={{ $('F7 - Obtener Restaurante por Instancia').first().json.telefono_restaurante || $('F7 - Obtener Restaurante por Instancia').first().json.telefono }}"
+              },
+              {
+                "id": "f7-msg-id",
+                "name": "message_id",
+                "type": "string",
+                "value": "={{ $('F7 - Webhook Entrada').first().json.body.data.key.id }}"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

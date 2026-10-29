@@ -298,6 +298,181 @@ function ReservationsStatus({ restaurant }) {
   );
 }
 
+/* ── Kitchen / Open Status Toggle (Cierre de emergencia / Apertura) ── */
+function KitchenOpenStatus({ restaurant, onRefresh }) {
+  const [cierreActivo, setCierreActivo] = useState(restaurant?.cierre_emergencia_activo ?? false);
+  const [motivo, setMotivo] = useState(restaurant?.cierre_emergencia_motivo || 'Evento privado / Mantenimiento');
+  const [toggling, setToggling] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (restaurant) {
+      setCierreActivo(restaurant.cierre_emergencia_activo ?? false);
+      if (restaurant.cierre_emergencia_motivo) setMotivo(restaurant.cierre_emergencia_motivo);
+    }
+  }, [restaurant]);
+
+  const handleToggle = async () => {
+    if (toggling || !restaurant) return;
+    
+    // Si queremos activar el cierre de emergencia, abrir modal para confirmar motivo
+    if (!cierreActivo) {
+      setShowModal(true);
+      return;
+    }
+
+    // Si ya estaba cerrado y queremos reabrir
+    setToggling(true);
+    try {
+      const { error } = await supabase
+        .from('restaurantes')
+        .update({ cierre_emergencia_activo: false })
+        .eq('id', restaurant.id);
+
+      if (!error) {
+        setCierreActivo(false);
+        if (onRefresh) onRefresh();
+      }
+    } catch (err) {
+      console.error('Error reabriendo cocina:', err);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const confirmarCierre = async () => {
+    if (!restaurant) return;
+    setToggling(true);
+    try {
+      const { error } = await supabase
+        .from('restaurantes')
+        .update({
+          cierre_emergencia_activo: true,
+          cierre_emergencia_motivo: motivo.trim() || 'Evento privado / Mantenimiento'
+        })
+        .eq('id', restaurant.id);
+
+      if (!error) {
+        setCierreActivo(true);
+        setShowModal(false);
+        if (onRefresh) onRefresh();
+      }
+    } catch (err) {
+      console.error('Error cerrando cocina:', err);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <>
+      <div style={{
+        background: cierreActivo
+          ? 'linear-gradient(135deg, #4A0E17 0%, #D90429 100%)'
+          : 'var(--color-surface)',
+        border: `1px solid ${cierreActivo ? 'transparent' : 'var(--color-surface-3)'}`,
+        borderRadius: 'var(--radius-xl)', padding: '18px',
+        transition: 'all 300ms ease',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18 }}>👨‍🍳</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: cierreActivo ? 'rgba(255,255,255,0.8)' : 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Cocina & Local Hoy
+              </span>
+            </div>
+            <p style={{
+              fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 900, marginTop: 6,
+              color: cierreActivo ? '#fff' : 'var(--color-on-surface)',
+            }}>
+              {cierreActivo ? 'Cerrado por Hoy' : 'Horario Habitual'}
+            </p>
+            <p style={{ fontSize: 11, marginTop: 2, color: cierreActivo ? 'rgba(255,255,255,0.7)' : 'var(--color-muted)', fontWeight: 600 }}>
+              {cierreActivo ? `Motivo: ${motivo}` : 'El bot responde según los horarios'}
+            </p>
+          </div>
+          <button
+            onClick={handleToggle}
+            disabled={toggling}
+            title={cierreActivo ? 'Click para reabrir cocina' : 'Click para cerrar por hoy'}
+            style={{
+              width: 52, height: 30, borderRadius: 15,
+              background: cierreActivo ? 'rgba(255,255,255,0.25)' : 'var(--color-surface-3, #E2E8F0)',
+              border: `1.5px solid ${cierreActivo ? 'rgba(255,255,255,0.4)' : 'var(--color-border, #CBD5E1)'}`,
+              cursor: toggling ? 'not-allowed' : 'pointer', position: 'relative',
+              transition: 'all 300ms ease',
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 2,
+              left: cierreActivo ? 24 : 3,
+              width: 22, height: 22, borderRadius: '50%',
+              background: cierreActivo ? '#FFFFFF' : 'var(--color-muted, #94A3B8)',
+              transition: 'left 300ms cubic-bezier(0.34,1.56,0.64,1), background 300ms',
+              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+            }}/>
+          </button>
+        </div>
+      </div>
+
+      {showModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+        }}>
+          <div style={{
+            background: 'var(--color-surface)', maxWidth: 440, width: '100%',
+            borderRadius: 24, padding: 24, border: '1.5px solid #D90429',
+            display: 'flex', flexDirection: 'column', gap: 16
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 24 }}>🚨</span>
+              <h3 style={{ margin: 0, fontFamily: 'Outfit, sans-serif', fontSize: 18, fontWeight: 900, color: 'var(--color-on-surface)' }}>
+                Marcar Restaurante Cerrado Hoy
+              </h3>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--color-muted)', margin: 0 }}>
+              El bot de WhatsApp informará a los clientes que la cocina no está atendiendo hoy.
+            </p>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                Motivo del cierre temporal
+              </label>
+              <input
+                className="input-field"
+                value={motivo}
+                onChange={e => setMotivo(e.target.value)}
+                placeholder="Ej. Evento privado, mantenimiento o falta de insumos"
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                style={{ padding: '10px 16px', borderRadius: 12, border: '1px solid var(--color-surface-3)', background: 'transparent', color: 'var(--color-muted)', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarCierre}
+                disabled={toggling}
+                style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: '#D90429', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+              >
+                {toggling ? 'Cerrando...' : 'Confirmar Cierre Hoy 🔒'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    DASHBOARD HOME — Fusión de Inicio + Métricas Avanzadas
    ═══════════════════════════════════════════════════════════ */
@@ -378,6 +553,18 @@ export default function DashboardHome({ onNavigate }) {
         const d = new Date(k + 'T12:00:00');
         return k === new Date().toISOString().split('T')[0] ? 'Hoy' : labelMap[d.getDay()];
       });
+
+      const deliveryPct = (ord7Days?.length ?? 0) > 0 ? Math.round((deliveryCount / ord7Days.length) * 100) : 0;
+
+      let maxVenta = -1;
+      let mejorDiaIndex = -1;
+      ventasSemana.forEach((v, idx) => {
+        if (v > maxVenta) {
+          maxVenta = v;
+          mejorDiaIndex = idx;
+        }
+      });
+      const mejorDia = mejorDiaIndex >= 0 && maxVenta > 0 ? labelsSemana[mejorDiaIndex] : 'Hoy';
 
       // Top Platos reales desde detalles_orden del restaurante activo
       let topPlatos = [];
@@ -517,6 +704,7 @@ export default function DashboardHome({ onNavigate }) {
         <MetricCard icon="⏱️" label="Ticket promedio" value={`S/. ${metrics.pedidosHoy > 0 ? (metrics.ventasHoy / metrics.pedidosHoy).toFixed(0) : '0'}`}
           sub="Por pedido hoy"
         />
+        <KitchenOpenStatus restaurant={activeRestaurant} onRefresh={fetchMetrics} />
         <BotStatus restaurant={activeRestaurant} onRefresh={fetchMetrics} />
         {isSalonEnabled && <ReservationsStatus restaurant={activeRestaurant} />}
       </div>

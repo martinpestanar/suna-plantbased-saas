@@ -1,0 +1,24 @@
+{
+  "id": "8xiaIHrcHOTiRAnBav0mj",
+  "operations": [
+    {
+      "type": "updateNode",
+      "nodeName": "F7 - Formatear Info Restaurante",
+      "updates": {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "f7-info-text",
+                "name": "texto_ia",
+                "type": "string",
+                "value": "={{\n  (() => {\n    const rawMsg = $('F7 - Extracción de Metadatos WhatsApp').first().json.message_content || '';\n    const msg = rawMsg.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n    const rest = $('F7 - Obtener Restaurante por Instancia').first().json;\n    const nombre = rest.nombre || 'Suna Plant Based';\n    const slug = rest.slug || 'suna-demo';\n    const tel = $('F7 - Extracción de Metadatos WhatsApp').first().json.telefono || '';\n    const orderLink = '👉 https://pedidos-suna.vercel.app/' + slug + '/ordenar/' + tel;\n    \n    // Si viene respuesta del subworkflow con contenido\n    if ($json.respuesta && $json.respuesta.length > 20) return $json.respuesta;\n    if ($json.output && $json.output.length > 20) return $json.output;\n\n    // 1. DELIVERY / ENVÍO\n    if (msg.includes('envi') || msg.includes('delivery') || msg.includes('lleg') || msg.includes('repart') || msg.includes('cobertura') || msg.includes('traer') || msg.includes('mandar') || msg.includes('costo') || msg.includes('cuanto cobra')) {\n      return '¡Sí, claro! Hacemos delivery a domicilio 🛵🌱\\n\\n' +\n        '• *Zonas de cobertura:* Miraflores, San Isidro, Surquillo, San Borja, Barranco y Lima Centro.\\n' +\n        '• *Tarifa:* Desde S/ 5.00 a S/ 8.00 según distancia (¡*Envío gratis* en pedidos desde S/ 50.00! ✨)\\n' +\n        '• *Tiempo de entrega:* 35 a 45 minutos (llega calientito en empaques compostables).\\n\\n' +\n        '¿A qué distrito o dirección sería para confirmarte cobertura exacta? O si gustas puedes armar tu pedido directo aquí:\\n' + orderLink;\n    }\n\n    // 2. HORARIOS / ¿ABIERTO?\n    if (msg.includes('hora') || msg.includes('abierto') || msg.includes('cierr') || msg.includes('atiend') || msg.includes('cuando abren')) {\n      return '¡Hola! Nuestros horarios de atención son ⏰🌿:\\n\\n' +\n        '• *Lunes a Jueves:* 12:00 PM – 10:00 PM\\n' +\n        '• *Viernes y Sábado:* 12:00 PM – 2:00 AM (madrugada)\\n' +\n        '• *Domingo:* 12:00 PM – 10:00 PM\\n\\n' +\n        '¿Deseas que te tome un pedido para delivery o te paso la carta?';\n    }\n\n    // 3. UBICACIÓN / DIRECCIÓN\n    if (msg.includes('donde') || msg.includes('ubicac') || msg.includes('direccion') || msg.includes('quedan') || msg.includes('local')) {\n      return '¡Nos encuentras en *' + (rest.direccion || 'Av. Miraflores 1245, Lima, Perú') + '*! 📍🌱\\n\\n' +\n        'Puedes visitarnos para comer en el local o pedir para llevar/delivery. ¿Te gustaría ver nuestra carta interactiva?\\n' + orderLink;\n    }\n\n    // 4. MÉTODOS DE PAGO\n    if (msg.includes('pago') || msg.includes('yape') || msg.includes('plin') || msg.includes('tarjeta') || msg.includes('transferencia') || msg.includes('efectivo')) {\n      return 'Aceptamos *Yape, Plin y transferencias directas* (BCP e Interbank) 📲💳.\\n\\n' +\n        'El pago se procesa al confirmar tu orden en nuestra webapp donde verás los códigos QR de inmediato:\\n' + orderLink;\n    }\n\n    // 5. RESERVAS\n    if (msg.includes('reserva') || msg.includes('mesa') || msg.includes('cumplean')) {\n      return '¡Con gusto te ayudamos con tu reserva en el local! 🌿🍽️\\n\\n' +\n        'Por favor confírmanos:\\n' +\n        '1. ¿Para qué fecha y hora sería?\\n' +\n        '2. ¿Para cuántas personas?\\n' +\n        '3. ¿A nombre de quién registramos la reserva?';\n    }\n\n    // FALLBACK INTELIGENTE\n    return '¡Con mucho gusto te ayudamos! 🌱 En ' + nombre + ' atendemos en ' + (rest.direccion || 'Av. Miraflores 1245') + ' y también contamos con *delivery a domicilio* 🛵.\\n\\n' +\n      '¿Deseas conocer nuestras opciones de hamburguesas y bowls, o ver la carta interactiva?\\n' + orderLink;\n  })()\n}}"
+              }
+            ]
+          },
+          "options": {}
+        }
+      }
+    }
+  ]
+}

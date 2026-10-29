@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import { useTheme, useRouter } from './router.jsx';
+import { checkRestaurantOpen } from './utils/scheduleHelper.js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -223,6 +224,7 @@ export default function App() {
   const [toast, setToast]   = useState(null);
   const [clock, setClock]   = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [openStatus, setOpenStatus] = useState(() => checkRestaurantOpen(FALLBACK_RESTAURANT));
 
   // ── Combo del Día ──
   const [activeCombo, setActiveCombo] = useState(null);
@@ -345,18 +347,21 @@ export default function App() {
     }
   }, [sheetOpen, delivery, customerCoords, restaurant]);
 
-  /* ──────────────────────────────────── Reloj nativo ── */
+  /* ──────────────────────────────────── Reloj nativo y horario ── */
   useEffect(() => {
     const tick = () => {
       const d = new Date();
       const h = String(d.getHours()).padStart(2,'0');
       const m = String(d.getMinutes()).padStart(2,'0');
       setClock(`${h}:${m}`);
+      if (restaurant) {
+        setOpenStatus(checkRestaurantOpen(restaurant, d));
+      }
     };
     tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [restaurant]);
 
   /* ──────────────────────────────────── Carga inicial ── */
   useEffect(() => {
@@ -681,6 +686,11 @@ export default function App() {
   };
 
   const addItem = (id) => {
+    if (!openStatus.isOpen) {
+      showToast(openStatus.bannerSubtitle || 'Cocina cerrada para pedidos en este momento 🌙', 'error');
+      if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
+      return;
+    }
     setCart(p => ({ ...p, [id]: (p[id]||0)+1 }));
     setPulsedItemId(id);
     setBadgePop(true);
@@ -692,6 +702,11 @@ export default function App() {
   };
 
   const addComboToCart = () => {
+    if (!openStatus.isOpen) {
+      showToast(openStatus.bannerSubtitle || 'Cocina cerrada para pedidos en este momento 🌙', 'error');
+      if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
+      return;
+    }
     if (activeCombo) {
       const burger = items.find(i => i.id === activeCombo.hamburguesa_id);
       const drink = items.find(i => i.id === activeCombo.bebida_id);
@@ -1151,9 +1166,24 @@ export default function App() {
                     <p style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:16, color:'var(--color-on-surface)', lineHeight:1.1 }}>
                       {restaurant.nombre}
                     </p>
-                    <p style={{ fontSize:10, color:'var(--color-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em' }}>
-                      Plant-Based • Perú 🌱
-                    </p>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                      <span style={{
+                        display: 'inline-block',
+                        width: 7, height: 7,
+                        borderRadius: '50%',
+                        background: openStatus.isOpen ? '#10B981' : '#EF4444',
+                        boxShadow: openStatus.isOpen ? '0 0 6px rgba(16,185,129,0.5)' : 'none'
+                      }} />
+                      <span style={{
+                        fontSize: 10,
+                        color: openStatus.isOpen ? 'var(--color-primary)' : 'var(--color-danger)',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em'
+                      }}>
+                        {openStatus.isOpen ? (openStatus.badgeText || 'Abierto para pedidos') : (openStatus.badgeText || 'Modo Catálogo • Cerrado')}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1709,6 +1739,81 @@ export default function App() {
                 </div>
               ) : (
                 <div style={{ padding:'12px 20px calc(20px + env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:10 }}>
+                  {/* BANNER INFORMATIVO: MODO CATÁLOGO CUANDO COCINA ESTÁ CERRADA */}
+                  {!openStatus.isOpen && (
+                    <div style={{
+                      background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
+                      border: '1.5px solid #334155',
+                      borderRadius: 20,
+                      padding: '14px 16px',
+                      color: '#F8FAFC',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.25)',
+                      marginBottom: 4,
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 64, opacity: 0.1, pointerEvents: 'none' }}>
+                        🌙
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>🌙</span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{
+                            display: 'inline-block',
+                            background: 'rgba(239, 68, 68, 0.2)',
+                            color: '#F87171',
+                            fontSize: 9.5,
+                            fontWeight: 900,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            marginBottom: 2
+                          }}>
+                            Modo Catálogo Informativo
+                          </span>
+                          <h4 style={{
+                            fontFamily: 'var(--font-display)',
+                            fontSize: 14,
+                            fontWeight: 900,
+                            margin: 0,
+                            color: '#F1F5F9'
+                          }}>
+                            {openStatus.bannerTitle || 'Cocina actualmente cerrada'}
+                          </h4>
+                        </div>
+                      </div>
+                      <p style={{
+                        fontSize: 11.5,
+                        lineHeight: 1.45,
+                        color: '#94A3B8',
+                        margin: 0
+                      }}>
+                        {openStatus.bannerSubtitle || 'Puedes explorar todos nuestros platos, ingredientes y precios con total libertad. La recepción de pedidos se habilitará al abrir cocina.'}
+                      </p>
+                      {openStatus.nextOpenTime && (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          padding: '5px 10px',
+                          borderRadius: 10,
+                          width: 'fit-content',
+                          marginTop: 2
+                        }}>
+                          <span style={{ fontSize: 12 }}>⏰</span>
+                          <span style={{ fontSize: 10.5, fontWeight: 800, color: '#38BDF8' }}>
+                            Apertura de pedidos: {openStatus.nextOpenTime}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* WELCOME CUSTOMER WIDGET */}
                   {clientInfo && (
                     <div style={{
@@ -1812,8 +1917,8 @@ export default function App() {
                           </div>
                           <div className="combo-banner__right">
                             <button onClick={addComboToCart} className="combo-banner__btn">
-                              <span className="combo-banner__btn-icon">🛒</span>
-                              <span className="combo-banner__btn-text">Pedir Combo</span>
+                              <span className="combo-banner__btn-icon">{openStatus.isOpen ? '🛒' : '🌙'}</span>
+                              <span className="combo-banner__btn-text">{openStatus.isOpen ? 'Pedir Combo' : 'Ver Combo'}</span>
                             </button>
                           </div>
                         </div>
@@ -1942,7 +2047,27 @@ export default function App() {
                               <span className="product-card__price">S/. {item.precio.toFixed(2)}</span>
                             )}
 
-                            {cart[item.id] ? (
+                            {!openStatus.isOpen ? (
+                              <button
+                                className="btn-add"
+                                onClick={() => addItem(item.id)}
+                                aria-label="Cocina cerrada"
+                                style={{
+                                  background: 'var(--color-surface-2)',
+                                  border: '1px dashed var(--color-muted)',
+                                  color: 'var(--color-muted)',
+                                  cursor: 'not-allowed',
+                                  padding: '0 8px',
+                                  width: 'auto',
+                                  borderRadius: 12,
+                                  fontSize: 10.5,
+                                  fontWeight: 800,
+                                  gap: 4
+                                }}
+                              >
+                                🌙 Catálogo
+                              </button>
+                            ) : cart[item.id] ? (
                               <div className="qty-control">
                                 <button className="qty-btn" onClick={() => setQty(item.id,-1)}>−</button>
                                 <span className="qty-value">{cart[item.id]}</span>
@@ -2298,22 +2423,41 @@ export default function App() {
                         </div>
                       </div>
                       <div style={{ marginTop:8 }}>
-                        <button
-                          type="submit"
-                          className="btn-primary"
-                          disabled={submitting || (delivery === 'delivery' && (
-                            restaurant.delivery_tipo_calculo === 'distancia'
-                              ? (!customerCoords || !meetsMinOrder || !meetsCoverage)
-                              : (!selectedZoneId || !address.trim() || !meetsMinOrder)
-                          ))}
-                        >
-                          {submitting ? (
-                            <>
-                              <div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
-                              Procesando...
-                            </>
-                          ) : `Confirmar pedido · S/. ${(totalPrice + deliveryFee).toFixed(2)}`}
-                        </button>
+                        {!openStatus.isOpen ? (
+                          <div style={{
+                            background: '#FEF2F2',
+                            border: '1.5px solid #F87171',
+                            borderRadius: 14,
+                            padding: '12px 14px',
+                            textAlign: 'center'
+                          }}>
+                            <p style={{ fontSize: 12, fontWeight: 900, color: '#991B1B', margin: 0 }}>
+                              🌙 Cocina en descanso para pedidos
+                            </p>
+                            <p style={{ fontSize: 11, color: '#B91C1C', margin: '4px 0 0 0', lineHeight: 1.3 }}>
+                              {openStatus.nextOpenTime
+                                ? `Podrás enviar tu pedido hoy a partir de las ${openStatus.nextOpenTime}.`
+                                : 'Por ahora solo es posible consultar la carta interactiva.'}
+                            </p>
+                          </div>
+                        ) : (
+                          <button
+                            type="submit"
+                            className="btn-primary"
+                            disabled={submitting || (delivery === 'delivery' && (
+                              restaurant.delivery_tipo_calculo === 'distancia'
+                                ? (!customerCoords || !meetsMinOrder || !meetsCoverage)
+                                : (!selectedZoneId || !address.trim() || !meetsMinOrder)
+                            ))}
+                          >
+                            {submitting ? (
+                              <>
+                                <div style={{ width:16, height:16, border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
+                                Procesando...
+                              </>
+                            ) : `Confirmar pedido · S/. ${(totalPrice + deliveryFee).toFixed(2)}`}
+                          </button>
+                        )}
                       </div>
                     </form>
                   </>

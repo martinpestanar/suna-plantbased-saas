@@ -170,7 +170,7 @@ export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onL
         gap: 8
       }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 13, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {restaurant?.nombre || 'Tu Restaurante'}
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
@@ -180,7 +180,7 @@ export default function DesktopSidebar({ restaurant, activeTab, onTabSelect, onL
               boxShadow: '0 0 0 2px var(--color-accent, #ECFDF5)',
             }} />
             <span style={{ fontSize: 10, color: 'var(--color-muted, #64748B)', fontWeight: 600 }}>
-              Operativo
+              {restaurant?.nombre_sucursal || 'Sede Principal'}
             </span>
           </div>
         </div>

@@ -133,7 +133,7 @@ const TABS = [
   { id: 'restaurante',label: 'Mi Restaurante',  Icon: IcoHome },
 ];
 
-/* ── Selector de Restaurante ── */
+/* ── Selector de Sucursal (Multi-Branch) ── */
 function RestaurantPickerLight({ open, onClose, restaurants, active, onSelect }) {
   if (!open) return null;
   return (
@@ -153,8 +153,11 @@ function RestaurantPickerLight({ open, onClose, restaurants, active, onSelect })
         boxShadow: '0 -8px 40px rgba(0,0,0,0.1)',
       }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: '#EBE7DC', margin: '0 auto 18px' }}/>
-        <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, color: '#2D2A26', marginBottom: 14 }}>
-          Seleccionar Restaurante
+        <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, color: '#2D2A26', marginBottom: 2 }}>
+          Sucursales de {active?.nombre || 'tu Negocio'}
+        </p>
+        <p style={{ fontSize: 12, color: '#8A8070', marginBottom: 14 }}>
+          Selecciona la sede activa para gestionar órdenes, salón y delivery
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '55vh', overflowY: 'auto' }}>
           {restaurants.map(r => (
@@ -177,8 +180,20 @@ function RestaurantPickerLight({ open, onClose, restaurants, active, onSelect })
                 <GrAd style={{ fontSize: 18, color: active?.id === r.id ? '#1B4332' : '#8A8070' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#2D2A26', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.nombre}</p>
-                {r.direccion && <p style={{ fontSize: 11, color: '#8A8070', fontWeight: 600, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.direccion}</p>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#2D2A26', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {r.nombre_sucursal || 'Sede Principal'}
+                  </p>
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 6,
+                    background: r.parent_id ? '#F1F5F9' : '#ECFDF5',
+                    color: r.parent_id ? '#475569' : '#059669',
+                    border: `1px solid ${r.parent_id ? '#E2E8F0' : '#A7F3D0'}`
+                  }}>
+                    {r.parent_id ? 'Sucursal' : 'Casa Matriz'}
+                  </span>
+                </div>
+                {r.direccion && <p style={{ fontSize: 11, color: '#8A8070', fontWeight: 600, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.direccion}</p>}
               </div>
               {active?.id === r.id && (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B4332" strokeWidth="2.5" strokeLinecap="round">
@@ -334,16 +349,17 @@ export default function DashboardLight() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               {/* Branch Picker */}
               <button
-                onClick={() => restaurants.length > 0 && setPickerOpen(true)}
+                onClick={() => restaurants.length > 1 && setPickerOpen(true)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   background: '#fff', border: '1px solid #EBE7DC',
-                  borderRadius: 12, padding: '8px 14px', cursor: 'pointer',
+                  borderRadius: 12, padding: '8px 14px',
+                  cursor: restaurants.length > 1 ? 'pointer' : 'default',
                   fontSize: 13, fontWeight: 700, color: '#2D2A26',
                   transition: 'all 150ms'
                 }}
               >
-                🏢 {activeRestaurant?.nombre || 'Seleccionar sucursal'} ▾
+                🏢 {activeRestaurant?.nombre} · {activeRestaurant?.nombre_sucursal || 'Sede Principal'} {restaurants.length > 1 ? `(${restaurants.length} sedes) ▾` : ''}
               </button>
               
               <Clock />
@@ -414,17 +430,18 @@ export default function DashboardLight() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Restaurant selector */}
             <button
-              onClick={() => restaurants.length > 0 && setPickerOpen(true)}
+              onClick={() => restaurants.length > 1 && setPickerOpen(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 background: '#fff', border: '1.5px solid #EBE7DC',
-                borderRadius: 14, padding: '8px 12px', cursor: 'pointer',
+                borderRadius: 14, padding: '8px 12px',
+                cursor: restaurants.length > 1 ? 'pointer' : 'default',
                 flex: 1, minWidth: 0, marginRight: 8,
                 boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                 transition: 'background 150ms',
               }}
-              onMouseDown={e => { e.currentTarget.style.background = '#F5F2EB'; }}
-              onMouseUp={e => { e.currentTarget.style.background = '#fff'; }}
+              onMouseDown={e => { if (restaurants.length > 1) e.currentTarget.style.background = '#F5F2EB'; }}
+              onMouseUp={e => { if (restaurants.length > 1) e.currentTarget.style.background = '#fff'; }}
             >
               <div style={{
                 width: 34, height: 34, borderRadius: 10, background: '#F5F2EA',
@@ -440,9 +457,13 @@ export default function DashboardLight() {
                 }}>
                   {resLoading ? 'Cargando...' : (activeRestaurant?.nombre ?? 'Seleccionar restaurante')}
                 </p>
-                {restaurants.length > 1 && (
+                {restaurants.length > 1 ? (
                   <p style={{ fontSize: 10, color: '#40916C', fontWeight: 700 }}>
-                    {restaurants.length} sucursales · Cambiar ▾
+                    {activeRestaurant?.nombre_sucursal || 'Sede Principal'} · {restaurants.length} sucursales ▾
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 10, color: '#8A8070', fontWeight: 600 }}>
+                    {activeRestaurant?.nombre_sucursal || 'Sede Principal'}
                   </p>
                 )}
               </div>

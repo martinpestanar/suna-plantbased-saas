@@ -706,11 +706,11 @@ export default function DashboardCarta() {
                           color: item.en_oferta ? 'var(--color-muted)' : 'var(--color-primary, #10B981)',
                           textDecoration: item.en_oferta ? 'line-through' : 'none'
                         }}>
-                          S/. {item.precio.toFixed(2)}
+                          {activeRestaurant?.simbolo_moneda || 'S/'} {item.precio.toFixed(2)}
                         </span>
                         {item.en_oferta && item.precio_oferta && (
                           <span style={{ fontFamily: 'Outfit, sans-serif', fontSize: 17, fontWeight: 900, color: '#EF4444' }}>
-                            S/. {item.precio_oferta.toFixed(2)}
+                            {activeRestaurant?.simbolo_moneda || 'S/'} {item.precio_oferta.toFixed(2)}
                           </span>
                         )}
                       </div>
@@ -824,7 +824,7 @@ export default function DashboardCarta() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 10 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-muted)', marginBottom: 4 }}>
-                    Precio (S/.) *
+                    Precio ({activeRestaurant?.simbolo_moneda || 'S/'}) *
                   </label>
                   <input
                     type="number" step="any" required placeholder="28.50"
@@ -893,7 +893,7 @@ export default function DashboardCarta() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
                     <div>
                       <label style={{ display: 'block', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-muted)', marginBottom: 3 }}>
-                        Precio Oferta (S/.)
+                        Precio Oferta ({activeRestaurant?.simbolo_moneda || 'S/'})
                       </label>
                       <input
                         type="number" step="any" placeholder="19.90"

@@ -202,33 +202,40 @@ export default function Login() {
           </button>
 
           {/* Dev Bypass Button */}
+          {/* Dev Bypass Buttons */}
           {window.location.hostname === 'localhost' && (
-            <button
-              type="button"
-              onClick={loginAsDev}
-              style={{
-                marginTop: 4,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                width: '100%', padding: '12px',
-                background: 'rgba(255,255,255,0.02)',
-                color: 'rgba(255,255,255,0.5)',
-                border: '1.5px dashed rgba(255,255,255,0.15)',
-                borderRadius: 16, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                transition: 'all 200ms ease',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(64,145,108,0.15)';
-                e.currentTarget.style.color = '#D8F3DC';
-                e.currentTarget.style.borderColor = '#40916C';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                e.currentTarget.style.color = 'rgba(255,255,255,0.5)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-              }}
-            >
-              🔑 Bypass Login (Modo Desarrollo)
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={() => loginAsDev('suna')}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  width: '100%', padding: '12px',
+                  background: 'rgba(64,145,108,0.15)',
+                  color: '#D8F3DC',
+                  border: '1.5px dashed #40916C',
+                  borderRadius: 14, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  transition: 'all 150ms ease',
+                }}
+              >
+                🌱 Dev: Entrar a <strong>Suna Plant Based</strong>
+              </button>
+              <button
+                type="button"
+                onClick={() => loginAsDev('santos')}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  width: '100%', padding: '12px',
+                  background: 'rgba(234,88,12,0.15)',
+                  color: '#FED7AA',
+                  border: '1.5px dashed #EA580C',
+                  borderRadius: 14, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  transition: 'all 150ms ease',
+                }}
+              >
+                🍸 Dev: Entrar a <strong>Santos Restobar</strong>
+              </button>
+            </div>
           )}
         </form>
 

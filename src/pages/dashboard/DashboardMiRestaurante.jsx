@@ -81,11 +81,19 @@ const DEFAULT_ROLE_PERMISSIONS = {
 
 
 export default function DashboardMiRestaurante() {
-  const { activeRestaurant } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState('perfil'); // 'perfil' | 'ia' | 'horarios' | 'delivery' | 'personal' | 'pagos'
+  const { activeRestaurant, restaurants, fetchRestaurants, selectRestaurant, session } = useAuth();
+  const [activeSubTab, setActiveSubTab] = useState('perfil'); // 'perfil' | 'ia' | 'horarios' | 'delivery' | 'personal' | 'pagos' | 'sucursales'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Form State: Sucursales
+  const [nombreSucursal, setNombreSucursal] = useState('');
+  const [direccionSucursal, setDireccionSucursal] = useState('');
+  const [telefonoSucursal, setTelefonoSucursal] = useState('');
+  const [slugSucursal, setSlugSucursal] = useState('');
+  const [creandoSucursal, setCreandoSucursal] = useState(false);
+  const [showNuevaSucursalModal, setShowNuevaSucursalModal] = useState(false);
 
   // Form State: Perfil Negocio
   const [nombre, setNombre] = useState('');
@@ -114,6 +122,10 @@ export default function DashboardMiRestaurante() {
 
   // Form State: Horarios & Cierre Emergencia
   const [horariosSemanales, setHorariosSemanales] = useState(PRESET_HORARIOS.restaurante);
+  const [zonaHoraria, setZonaHoraria] = useState('America/Lima');
+  const [pais, setPais] = useState('PE');
+  const [moneda, setMoneda] = useState('PEN');
+  const [simboloMoneda, setSimboloMoneda] = useState('S/');
   const [diasFeriados, setDiasFeriados] = useState([]);
   const [mensajeFueraHorario, setMensajeFueraHorario] = useState('Nuestra cocina se encuentra actualmente en horario de descanso. Te responderemos apenas abramos.');
   const [cierreEmergenciaActivo, setCierreEmergenciaActivo] = useState(false);
@@ -214,6 +226,10 @@ export default function DashboardMiRestaurante() {
         if (target.horarios_semanales && typeof target.horarios_semanales === 'object') {
           setHorariosSemanales({ ...PRESET_HORARIOS.restaurante, ...target.horarios_semanales });
         }
+        setZonaHoraria(target.zona_horaria || 'America/Lima');
+        setPais(target.pais || 'PE');
+        setMoneda(target.moneda || 'PEN');
+        setSimboloMoneda(target.simbolo_moneda || 'S/');
         if (Array.isArray(target.dias_feriados)) {
           setDiasFeriados(target.dias_feriados);
         }
@@ -366,6 +382,73 @@ export default function DashboardMiRestaurante() {
     }
   };
 
+  // Handler Crear Sucursal
+  const handleCrearSucursal = async (e) => {
+    e.preventDefault();
+    if (!nombreSucursal.trim()) {
+      showToast('Ingresa el nombre de la sede', 'error');
+      return;
+    }
+    setCreandoSucursal(true);
+    try {
+      const matrizId = activeRestaurant.parent_id || activeRestaurant.id;
+      const cleanSlug = (slugSucursal || `${activeRestaurant.slug}-${nombreSucursal}`)
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-');
+
+      const { data: nuevaRes, error: errRes } = await supabase
+        .from('restaurantes')
+        .insert([{
+          nombre: activeRestaurant.nombre,
+          nombre_sucursal: nombreSucursal.trim(),
+          parent_id: matrizId,
+          slug: cleanSlug,
+          direccion: direccionSucursal.trim() || activeRestaurant.direccion || '',
+          telefono: telefonoSucursal.trim() || activeRestaurant.telefono || '',
+          nicho_preset: activeRestaurant.nicho_preset || 'plant_based',
+          color_primario: activeRestaurant.color_primario || '#059669',
+          color_secundario: activeRestaurant.color_secundario || '#10B981',
+          logo_url: activeRestaurant.logo_url || null,
+          bot_nombre: activeRestaurant.bot_nombre || 'Mr. Green',
+          bot_tono: activeRestaurant.bot_tono || 'cercano_informal',
+          bot_emojis: activeRestaurant.bot_emojis || 'moderado',
+          tipo_cocina: activeRestaurant.tipo_cocina || 'Plant-based & Saludable',
+          delivery_tarifa_base: activeRestaurant.delivery_tarifa_base || 5,
+          delivery_km_base: activeRestaurant.delivery_km_base || 3,
+          delivery_costo_km_adicional: activeRestaurant.delivery_costo_km_adicional || 1.5,
+          delivery_cobertura_maxima_km: activeRestaurant.delivery_cobertura_maxima_km || 10,
+        }])
+        .select()
+        .single();
+
+      if (errRes) throw errRes;
+
+      // Vincular al usuario en restaurante_usuarios
+      if (session?.user?.id) {
+        await supabase.from('restaurante_usuarios').insert([{
+          user_id: session.user.id,
+          restaurante_id: nuevaRes.id,
+          rol: 'owner'
+        }]);
+      }
+
+      showToast(`¡Sede "${nombreSucursal}" creada con éxito!`, 'success');
+      setNombreSucursal('');
+      setDireccionSucursal('');
+      setTelefonoSucursal('');
+      setSlugSucursal('');
+      setShowNuevaSucursalModal(false);
+
+      if (fetchRestaurants) await fetchRestaurants();
+    } catch (err) {
+      console.error('Error al crear sucursal:', err);
+      showToast('Error al crear la sucursal: ' + (err.message || 'Intenta de nuevo'), 'error');
+    } finally {
+      setCreandoSucursal(false);
+    }
+  };
+
   // Handlers Feriados
   const handleAddFeriado = (e) => {
     e.preventDefault();
@@ -385,13 +468,20 @@ export default function DashboardMiRestaurante() {
   };
 
   // Guardar configuración general
-  const handleSave = async (e) => {
-    e?.preventDefault();
+  const handleSave = async (e, overrides = {}) => {
+    e?.preventDefault?.();
     if (!activeRestaurant?.id) return;
 
     setSaving(true);
     try {
       const finalCuisine = tipoCocinaPreset === 'OTRO' ? tipoCocinaCustom.trim() : tipoCocinaPreset;
+
+      const currentCierreActivo = overrides.cierre_emergencia_activo !== undefined
+        ? overrides.cierre_emergencia_activo
+        : cierreEmergenciaActivo;
+      const currentCierreMotivo = overrides.cierre_emergencia_motivo !== undefined
+        ? overrides.cierre_emergencia_motivo
+        : cierreEmergenciaMotivo;
 
       const payload = {
         nombre,
@@ -400,7 +490,6 @@ export default function DashboardMiRestaurante() {
         direccion,
         acepta_reservas: aceptaReservas,
         logo_url: logoUrl,
-        banner_url: bannerUrl,
         eslogan: eslogan,
         bot_nombre: botNombre,
         bot_tono: botTono,
@@ -409,26 +498,47 @@ export default function DashboardMiRestaurante() {
         valores_diferenciales: valoresDiferenciales,
         politicas_negocio: politicasNegocio,
         instrucciones_ia: instruccionesIa,
-        horarios_semanales: horariosSemanales,
+        horarios_semanales: overrides.horarios_semanales || horariosSemanales,
+        zona_horaria: zonaHoraria,
+        pais,
+        moneda,
+        simbolo_moneda: simboloMoneda,
+        horarios_atencion: (() => {
+          try {
+            const h = overrides.horarios_semanales || horariosSemanales;
+            const diasActivos = DIAS_SEMANA.filter(d => h[d.key]?.activo);
+            if (!diasActivos.length) return 'Cerrado temporalmente';
+            const primerDia = h[diasActivos[0].key];
+            const t1 = `${primerDia.t1_open || '12:00'} - ${primerDia.t1_close || '22:00'}`;
+            const t2 = primerDia.dosTurnos && primerDia.t2_open ? ` / ${primerDia.t2_open} - ${primerDia.t2_close}` : '';
+            return `${diasActivos[0].label} a ${diasActivos[diasActivos.length - 1].label}: ${t1}${t2}`;
+          } catch (e) {
+            return 'Lunes a Sábado: 12:00 PM - 10:00 PM';
+          }
+        })(),
         dias_feriados: diasFeriados,
         mensaje_fuera_horario: mensajeFueraHorario,
-        cierre_emergencia_activo: cierreEmergenciaActivo,
-        cierre_emergencia_motivo: cierreEmergenciaMotivo,
+        cierre_emergencia_activo: currentCierreActivo,
+        cierre_emergencia_motivo: currentCierreMotivo,
         yape_numero: yapeNumero,
         yape_titular: yapeTitular,
         plin_numero: plinNumero,
         color_primario: colorPrimario,
         color_secundario: colorSecundario,
         delivery_tipo_calculo: tipoCalculo,
-        latitud: parseFloat(lat),
-        longitud: parseFloat(lng),
-        delivery_tarifa_base: parseFloat(tarifaBase),
-        delivery_km_base: parseFloat(kmBase),
-        delivery_costo_km_adicional: parseFloat(costoKmAdicional),
-        delivery_cobertura_maxima_km: parseFloat(coberturaMaximaKm),
-        delivery_pedido_minimo_global: parseFloat(pedidoMinimoGlobal),
-        delivery_envio_gratis_desde_global: parseFloat(envioGratisDesdeGlobal),
+        latitud: parseFloat(lat) || 0,
+        longitud: parseFloat(lng) || 0,
+        delivery_tarifa_base: parseFloat(tarifaBase) || 0,
+        delivery_km_base: parseFloat(kmBase) || 0,
+        delivery_costo_km_adicional: parseFloat(costoKmAdicional) || 0,
+        delivery_cobertura_maxima_km: parseFloat(coberturaMaximaKm) || 0,
+        delivery_pedido_minimo_global: parseFloat(pedidoMinimoGlobal) || 0,
+        delivery_envio_gratis_desde_global: parseFloat(envioGratisDesdeGlobal) || 0,
+        ...overrides
       };
+
+      // Si el schema no tiene banner_url, no lo enviamos
+      delete payload.banner_url;
 
       const { error } = await supabase
         .from('restaurantes')
@@ -437,6 +547,7 @@ export default function DashboardMiRestaurante() {
 
       if (error) throw error;
       showToast("¡Configuración guardada correctamente! 🌿");
+      if (fetchRestaurants) fetchRestaurants();
     } catch (err) {
       console.error(err);
       showToast("Error al guardar cambios: " + err.message, "error");
@@ -599,13 +710,17 @@ export default function DashboardMiRestaurante() {
           </div>
           <button
             type="button"
-            onClick={() => { setCierreEmergenciaActivo(false); handleSave(); }}
+            disabled={saving}
+            onClick={async () => {
+              setCierreEmergenciaActivo(false);
+              await handleSave(null, { cierre_emergencia_activo: false });
+            }}
             style={{
-              padding: '6px 12px', borderRadius: 8, background: '#D90429', color: '#fff',
-              border: 'none', fontWeight: 800, fontSize: 11, cursor: 'pointer', flexShrink: 0
+              padding: '8px 14px', borderRadius: 10, background: '#D90429', color: '#fff',
+              border: 'none', fontWeight: 800, fontSize: 12, cursor: 'pointer', flexShrink: 0
             }}
           >
-            Reabrir Ahora
+            {saving ? 'Reabriendo...' : 'Reabrir Ahora'}
           </button>
         </div>
       )}
@@ -697,6 +812,15 @@ export default function DashboardMiRestaurante() {
             icon: (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
+            ) 
+          },
+          { 
+            id: 'sucursales', 
+            label: 'Sucursales / Sedes', 
+            icon: (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
               </svg>
             ) 
           },
@@ -982,214 +1106,375 @@ export default function DashboardMiRestaurante() {
       )}
 
       {/* ────────────────────────────────────────────────────────────────── */}
-      {/* PESTAÑA 3: HORARIOS Y CALENDARIO */}
+      {/* PESTAÑA 3: HORARIOS Y CALENDARIO (100% FIRST MOBILE ADAPTIVE) */}
       {/* ────────────────────────────────────────────────────────────────── */}
       {activeSubTab === 'horarios' && (
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Botón Cierre Inmediato de Emergencia */}
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* Card Cierre de Emergencia */}
           <div style={{
-            background: cierreEmergenciaActivo ? 'rgba(217,4,41,0.15)' : 'var(--color-surface-2)',
-            padding: 20, borderRadius: 20, border: `1.5px solid ${cierreEmergenciaActivo ? '#D90429' : 'var(--color-surface-3)'}`,
+            background: cierreEmergenciaActivo ? '#FFF1F2' : 'var(--color-surface, #FFFFFF)',
+            padding: 18, borderRadius: 16,
+            border: `1.5px solid ${cierreEmergenciaActivo ? '#E11D48' : 'var(--color-surface-3, #E2E8F0)'}`,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
             display: 'flex', flexDirection: 'column', gap: 14
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: cierreEmergenciaActivo ? '#D90429' : 'var(--color-on-surface)' }}>
-                  🚨 Cierre Inmediato de Emergencia / Evento Privado
-                </h3>
-                <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 2 }}>
-                  Usa este botón si debes cerrar la cocina de golpe por hoy (lluvia, falla eléctrica, evento privado o falta de insumos).
-                </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10,
+                    background: cierreEmergenciaActivo ? '#FFE4E6' : 'rgba(225,29,72,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, flexShrink: 0
+                  }}>
+                    🚨
+                  </div>
+                  <div>
+                    <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 800, margin: 0, color: cierreEmergenciaActivo ? '#BE123C' : 'var(--color-on-surface, #0F172A)' }}>
+                      Cierre Temporal de Emergencia
+                    </h3>
+                    <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '3px 0 0', lineHeight: 1.35 }}>
+                      Pausa inmediatamente la toma de pedidos en carta QR y WhatsApp.
+                    </p>
+                  </div>
+                </div>
+
+                <span style={{
+                  fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 20, flexShrink: 0,
+                  background: cierreEmergenciaActivo ? '#E11D48' : 'rgba(100,116,139,0.12)',
+                  color: cierreEmergenciaActivo ? '#FFFFFF' : 'var(--color-muted, #64748B)'
+                }}>
+                  {cierreEmergenciaActivo ? '🔴 CERRADO' : '🟢 ABIERTO'}
+                </span>
               </div>
 
+              {/* Botón Acción Rápida (Toggle) */}
               <button
                 type="button"
-                onClick={() => setCierreEmergenciaActivo(!cierreEmergenciaActivo)}
+                disabled={saving}
+                onClick={async () => {
+                  const nuevoEstado = !cierreEmergenciaActivo;
+                  setCierreEmergenciaActivo(nuevoEstado);
+                  await handleSave(null, {
+                    cierre_emergencia_activo: nuevoEstado,
+                    cierre_emergencia_motivo: cierreEmergenciaMotivo
+                  });
+                }}
                 style={{
-                  padding: '10px 18px', borderRadius: 12, cursor: 'pointer', fontWeight: 900, fontSize: 13, border: 'none',
-                  background: cierreEmergenciaActivo ? '#D90429' : 'rgba(217,4,41,0.1)',
-                  color: cierreEmergenciaActivo ? '#fff' : '#D90429', transition: 'all 150ms'
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  border: 'none',
+                  background: cierreEmergenciaActivo ? '#E11D48' : 'rgba(225,29,72,0.1)',
+                  color: cierreEmergenciaActivo ? '#FFFFFF' : '#E11D48',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'all 150ms'
                 }}
               >
-                {cierreEmergenciaActivo ? '🔴 Cierre Activo (Click para Reabrir)' : '⚪ Activar Cierre Temporal Hoy'}
+                <span>{cierreEmergenciaActivo ? '🔓 Click para Reabrir Restaurante' : '🔒 Activar Cierre Temporal Hoy'}</span>
               </button>
             </div>
 
             {cierreEmergenciaActivo && (
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#D90429', textTransform: 'uppercase', marginBottom: 6 }}>
-                  Motivo que la IA comunicará a los clientes
+              <div style={{ paddingTop: 10, borderTop: '1px dashed rgba(225,29,72,0.3)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#BE123C', textTransform: 'uppercase' }}>
+                  Motivo comunicado a los clientes por la IA
                 </label>
                 <input
                   className="input-field"
                   value={cierreEmergenciaMotivo}
                   onChange={e => setCierreEmergenciaMotivo(e.target.value)}
-                  placeholder="Ej. Hoy estamos cerrados por evento privado. ¡Volvemos mañana!"
+                  placeholder="Ej. Hoy nos encontramos cerrados por evento privado / mantenimiento."
+                  style={{ background: '#FFFFFF', borderColor: '#FDA4AF' }}
                 />
               </div>
             )}
           </div>
 
-          {/* Plantillas Rápidas de Horario */}
+          {/* Card Zona Horaria y Moneda */}
           <div style={{
-            background: 'var(--color-surface-2)', padding: 20, borderRadius: 20,
-            border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 12
+            background: 'var(--color-surface, #FFFFFF)', padding: 18, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: 14
           }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              ⚡ Plantillas Rápidas de Horarios por Tipo de Negocio
-            </span>
+            <div>
+              <h4 style={{ margin: 0, fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)' }}>
+                🌍 País, Zona Horaria & Moneda Operativa
+              </h4>
+              <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '3px 0 0' }}>
+                Define la hora local y la moneda con la que el bot de WhatsApp, la carta y las tarifas de delivery operan en tiempo real.
+              </p>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase' }}>
+                  País y Zona Horaria
+                </label>
+                <select
+                  className="input-field"
+                  style={{ width: '100%', fontWeight: 700, fontSize: 13 }}
+                  value={zonaHoraria}
+                  onChange={e => {
+                    const tz = e.target.value;
+                    setZonaHoraria(tz);
+                    // Mapeo automático de país y moneda
+                    const countryPresets = {
+                      'America/Lima': { pais: 'PE', moneda: 'PEN', simbolo: 'S/' },
+                      'America/Bogota': { pais: 'CO', moneda: 'COP', simbolo: '$' },
+                      'America/Santiago': { pais: 'CL', moneda: 'CLP', simbolo: '$' },
+                      'America/Mexico_City': { pais: 'MX', moneda: 'MXN', simbolo: '$' },
+                      'America/Buenos_Aires': { pais: 'AR', moneda: 'ARS', simbolo: '$' },
+                      'America/Guayaquil': { pais: 'EC', moneda: 'USD', simbolo: '$' },
+                      'America/La_Paz': { pais: 'BO', moneda: 'BOB', simbolo: 'Bs' },
+                      'America/Montevideo': { pais: 'UY', moneda: 'UYU', simbolo: '$' },
+                      'America/Asuncion': { pais: 'PY', moneda: 'PYG', simbolo: 'Gs' },
+                      'America/Caracas': { pais: 'VE', moneda: 'USD', simbolo: '$' },
+                      'America/Costa_Rica': { pais: 'CR', moneda: 'CRC', simbolo: '₡' },
+                      'America/Panama': { pais: 'PA', moneda: 'USD', simbolo: '$' },
+                      'Europe/Madrid': { pais: 'ES', moneda: 'EUR', simbolo: '€' },
+                      'America/New_York': { pais: 'US', moneda: 'USD', simbolo: '$' },
+                    };
+                    const preset = countryPresets[tz];
+                    if (preset) {
+                      setPais(preset.pais);
+                      setMoneda(preset.moneda);
+                      setSimboloMoneda(preset.simbolo);
+                    }
+                  }}
+                >
+                  <option value="America/Lima">🇵🇪 Perú (Lima - GMT-5 | Sol S/)</option>
+                  <option value="America/Bogota">🇨🇴 Colombia (Bogotá - GMT-5 | Peso $)</option>
+                  <option value="America/Santiago">🇨🇱 Chile (Santiago - GMT-4 | Peso $)</option>
+                  <option value="America/Mexico_City">🇲🇽 México (CDMX - GMT-6 | Peso $)</option>
+                  <option value="America/Buenos_Aires">🇦🇷 Argentina (Buenos Aires - GMT-3 | Peso $)</option>
+                  <option value="America/Guayaquil">🇪🇨 Ecuador (Quito - GMT-5 | Dólar $)</option>
+                  <option value="America/La_Paz">🇧🇴 Bolivia (La Paz - GMT-4 | Boliviano Bs)</option>
+                  <option value="America/Montevideo">🇺🇾 Uruguay (Montevideo - GMT-3 | Peso $)</option>
+                  <option value="America/Asuncion">🇵🇾 Paraguay (Asunción - GMT-4 | Guaraní Gs)</option>
+                  <option value="America/Caracas">🇻🇪 Venezuela (Caracas - GMT-4 | Dólar $)</option>
+                  <option value="America/Costa_Rica">🇨🇷 Costa Rica (San José - GMT-6 | Colón ₡)</option>
+                  <option value="America/Panama">🇵🇦 Panamá (Panamá - GMT-5 | Dólar $)</option>
+                  <option value="Europe/Madrid">🇪🇸 España (Madrid - GMT+1 | Euro €)</option>
+                  <option value="America/New_York">🇺🇸 EE.UU. (Miami / New York - EST | USD $)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase' }}>
+                    Código Moneda
+                  </label>
+                  <input
+                    className="input-field"
+                    style={{ width: '100%', fontWeight: 700, fontSize: 13 }}
+                    value={moneda}
+                    onChange={e => setMoneda(e.target.value.toUpperCase())}
+                    placeholder="COP, CLP, PEN..."
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase' }}>
+                    Símbolo Visual
+                  </label>
+                  <input
+                    className="input-field"
+                    style={{ width: '100%', fontWeight: 700, fontSize: 13 }}
+                    value={simboloMoneda}
+                    onChange={e => setSimboloMoneda(e.target.value)}
+                    placeholder="$, S/, €..."
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Plantillas Rápidas */}
+          <div style={{
+            background: 'var(--color-surface, #FFFFFF)', padding: 18, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: 10
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              ⚡ Plantillas Rápidas para toda la semana
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 8 }}>
               <button
                 type="button"
                 onClick={() => applyPresetHorarios('cafeteria')}
                 style={{
-                  padding: '12px 14px', borderRadius: 14, background: 'var(--color-surface)',
-                  border: '1px solid var(--color-surface-3)', cursor: 'pointer', textAlign: 'left',
+                  padding: '10px 12px', borderRadius: 12, background: 'var(--color-surface-2, #F8FAFC)',
+                  border: '1px solid var(--color-surface-3, #E2E8F0)', cursor: 'pointer', textAlign: 'left',
                   transition: 'all 150ms'
                 }}
               >
-                <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>☕ Cafetería / Bakery</p>
-                <p style={{ fontSize: 10, color: 'var(--color-muted)', margin: 0, marginTop: 2 }}>7:00 AM – 7:00 PM (Corrido)</p>
+                <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)', margin: 0 }}>☕ Cafetería</p>
+                <p style={{ fontSize: 10, color: 'var(--color-muted, #64748B)', margin: '2px 0 0' }}>7 AM – 7 PM (Corrido)</p>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyPresetHorarios('restaurante')}
                 style={{
-                  padding: '12px 14px', borderRadius: 14, background: 'var(--color-surface)',
-                  border: '1px solid var(--color-surface-3)', cursor: 'pointer', textAlign: 'left',
+                  padding: '10px 12px', borderRadius: 12, background: 'var(--color-surface-2, #F8FAFC)',
+                  border: '1px solid var(--color-surface-3, #E2E8F0)', cursor: 'pointer', textAlign: 'left',
                   transition: 'all 150ms'
                 }}
               >
-                <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>🍲 Restaurante Tradicional</p>
-                <p style={{ fontSize: 10, color: 'var(--color-muted)', margin: 0, marginTop: 2 }}>12 PM-4 PM / 7 PM-11 PM (2 Turnos)</p>
+                <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)', margin: 0 }}>🍲 Tradicional</p>
+                <p style={{ fontSize: 10, color: 'var(--color-muted, #64748B)', margin: '2px 0 0' }}>Almuerzo & Cena (2 Turnos)</p>
               </button>
 
               <button
                 type="button"
                 onClick={() => applyPresetHorarios('nocturno')}
                 style={{
-                  padding: '12px 14px', borderRadius: 14, background: 'var(--color-surface)',
-                  border: '1px solid var(--color-surface-3)', cursor: 'pointer', textAlign: 'left',
+                  padding: '10px 12px', borderRadius: 12, background: 'var(--color-surface-2, #F8FAFC)',
+                  border: '1px solid var(--color-surface-3, #E2E8F0)', cursor: 'pointer', textAlign: 'left',
                   transition: 'all 150ms'
                 }}
               >
-                <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-on-surface)', margin: 0 }}>🍕 Fast Food Nocturno</p>
-                <p style={{ fontSize: 10, color: 'var(--color-muted)', margin: 0, marginTop: 2 }}>5:00 PM – 12:00 AM (Corrido)</p>
+                <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)', margin: 0 }}>🍕 Nocturno</p>
+                <p style={{ fontSize: 10, color: 'var(--color-muted, #64748B)', margin: '2px 0 0' }}>5 PM – 12 AM (Corrido)</p>
               </button>
             </div>
           </div>
 
-          {/* Horarios por Día de la Semana */}
+          {/* Horarios por Día de la Semana (Mobile First) */}
           <div style={{
-            background: 'var(--color-surface-2)', padding: 24, borderRadius: 20,
-            border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 16
+            background: 'var(--color-surface, #FFFFFF)', padding: 18, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: 14
           }}>
             <div>
-              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>
-                Horarios Semanales & Días Fijos de Descanso
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--color-on-surface, #0F172A)' }}>
+                Horarios Semanales & Días de Descanso
               </h3>
-              <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 4 }}>
-                Soporta desde aperturas tempranas (06:00 AM) hasta cierres nocturnos, con turnos divididos o jornadas corridas.
+              <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '3px 0 0' }}>
+                Configura cada día de apertura con 1 o 2 turnos (horario partido almuerzo / cena).
               </p>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {DIAS_SEMANA.map(({ key, label }) => {
                 const dayConfig = horariosSemanales[key] || { activo: true, t1_open: '08:00', t1_close: '20:00', dosTurnos: false };
+                const isActivo = !!dayConfig.activo;
+
                 return (
                   <div key={key} style={{
-                    background: 'var(--color-surface)', padding: 16, borderRadius: 16,
-                    border: `1.5px solid ${dayConfig.activo ? 'var(--color-surface-3)' : 'rgba(239,68,68,0.25)'}`,
-                    display: 'flex', flexDirection: 'column', gap: 12
+                    background: isActivo ? 'var(--color-surface-2, #F8FAFC)' : 'rgba(239,68,68,0.03)',
+                    padding: 14, borderRadius: 14,
+                    border: `1px solid ${isActivo ? 'var(--color-surface-3, #E2E8F0)' : 'rgba(239,68,68,0.2)'}`,
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                    transition: 'all 150ms ease-in-out'
                   }}>
-                    {/* Header Día + Switch */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-on-surface)' }}>{label}</span>
+                    {/* Fila Principal de Día */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: isActivo ? 'var(--color-on-surface, #0F172A)' : '#EF4444' }}>
+                          {label}
+                        </span>
                         <span style={{
-                          fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 10,
-                          background: dayConfig.activo ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                          color: dayConfig.activo ? '#10B981' : '#EF4444'
+                          fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 8,
+                          background: isActivo ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                          color: isActivo ? '#059669' : '#EF4444'
                         }}>
-                          {dayConfig.activo ? 'Abierto 🟢' : '🔒 Día Fijo de Descanso del Personal'}
+                          {isActivo ? 'Abierto' : 'Descanso'}
                         </span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {dayConfig.activo && (
-                          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted)', cursor: 'pointer' }}>
+                      {/* Botón Switch Activo / Descanso */}
+                      <button
+                        type="button"
+                        onClick={() => updateHorarioDay(key, 'activo', !isActivo)}
+                        style={{
+                          padding: '6px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                          background: isActivo ? 'rgba(239,68,68,0.1)' : 'var(--color-primary, #059669)',
+                          color: isActivo ? '#EF4444' : '#FFFFFF', fontWeight: 800, fontSize: 11,
+                          flexShrink: 0
+                        }}
+                      >
+                        {isActivo ? 'Marcar Descanso' : 'Habilitar Día'}
+                      </button>
+                    </div>
+
+                    {/* Controles de Horas si está Activo */}
+                    {isActivo && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6, borderTop: '1px solid var(--color-surface-3, #E2E8F0)' }}>
+                        {/* Checkbox Turno Dividido */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--color-muted, #64748B)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                             <input
                               type="checkbox"
                               checked={!!dayConfig.dosTurnos}
                               onChange={e => updateHorarioDay(key, 'dosTurnos', e.target.checked)}
-                              style={{ marginRight: 6, accentColor: 'var(--color-primary)' }}
+                              style={{ width: 16, height: 16, accentColor: 'var(--color-primary, #059669)', cursor: 'pointer' }}
                             />
-                            Turno Dividido (Pausa de Almuerzo / Descanso)
+                            Turno dividido (pausa de almuerzo / cena)
                           </label>
-                        )}
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => updateHorarioDay(key, 'activo', !dayConfig.activo)}
-                          style={{
-                            padding: '6px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                            background: dayConfig.activo ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
-                            color: dayConfig.activo ? '#EF4444' : '#10B981', fontWeight: 800, fontSize: 12
-                          }}
-                        >
-                          {dayConfig.activo ? 'Marcar Descanso Fijo' : 'Habilitar Día'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Inputs de Horas de Turno */}
-                    {dayConfig.activo && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6, borderTop: '1px dashed var(--color-surface-3)' }}>
                         {/* Turno 1 */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', width: 110 }}>
-                            {dayConfig.dosTurnos ? 'Turno 1 (Mañana/Almuerzo):' : 'Jornada Completa:'}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)' }}>
+                            {dayConfig.dosTurnos ? 'Turno 1 (Mañana / Almuerzo):' : 'Jornada Continua:'}
                           </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>Abre:</span>
-                            <input
-                              type="time" className="input-field" style={{ width: 115, padding: '6px 10px' }}
-                              value={dayConfig.t1_open || '08:00'}
-                              onChange={e => updateHorarioDay(key, 't1_open', e.target.value)}
-                            />
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>Cierra/Pausa:</span>
-                            <input
-                              type="time" className="input-field" style={{ width: 115, padding: '6px 10px' }}
-                              value={dayConfig.t1_close || '16:00'}
-                              onChange={e => updateHorarioDay(key, 't1_close', e.target.value)}
-                            />
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-muted, #64748B)' }}>Abre</label>
+                              <input
+                                type="time"
+                                className="input-field"
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 13, fontWeight: 700 }}
+                                value={dayConfig.t1_open || '08:00'}
+                                onChange={e => updateHorarioDay(key, 't1_open', e.target.value)}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-muted, #64748B)' }}>
+                                {dayConfig.dosTurnos ? 'Pausa' : 'Cierra'}
+                              </label>
+                              <input
+                                type="time"
+                                className="input-field"
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 13, fontWeight: 700 }}
+                                value={dayConfig.t1_close || '16:00'}
+                                onChange={e => updateHorarioDay(key, 't1_close', e.target.value)}
+                              />
+                            </div>
                           </div>
                         </div>
 
-                        {/* Turno 2 (si aplica) */}
+                        {/* Turno 2 si aplica */}
                         {dayConfig.dosTurnos && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', width: 110 }}>
-                              Turno 2 (Tarde/Cena):
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 6, borderTop: '1px dashed var(--color-surface-3, #E2E8F0)' }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)' }}>
+                              Turno 2 (Tarde / Noche):
                             </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>Reabre:</span>
-                              <input
-                                type="time" className="input-field" style={{ width: 115, padding: '6px 10px' }}
-                                value={dayConfig.t2_open || '19:00'}
-                                onChange={e => updateHorarioDay(key, 't2_open', e.target.value)}
-                              />
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>Cierra final:</span>
-                              <input
-                                type="time" className="input-field" style={{ width: 115, padding: '6px 10px' }}
-                                value={dayConfig.t2_close || '23:00'}
-                                onChange={e => updateHorarioDay(key, 't2_close', e.target.value)}
-                              />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-muted, #64748B)' }}>Reabre</label>
+                                <input
+                                  type="time"
+                                  className="input-field"
+                                  style={{ width: '100%', padding: '6px 8px', fontSize: 13, fontWeight: 700 }}
+                                  value={dayConfig.t2_open || '19:00'}
+                                  onChange={e => updateHorarioDay(key, 't2_open', e.target.value)}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-muted, #64748B)' }}>Cierre final</label>
+                                <input
+                                  type="time"
+                                  className="input-field"
+                                  style={{ width: '100%', padding: '6px 8px', fontSize: 13, fontWeight: 700 }}
+                                  value={dayConfig.t2_close || '23:00'}
+                                  onChange={e => updateHorarioDay(key, 't2_close', e.target.value)}
+                                />
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1200,9 +1485,9 @@ export default function DashboardMiRestaurante() {
               })}
             </div>
 
-            {/* Mensaje Automático Fuera de Horario */}
-            <div style={{ marginTop: 12 }}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+            {/* Mensaje Fuera de Horario */}
+            <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase' }}>
                 Mensaje Automático de la IA fuera de Horario
               </label>
               <textarea
@@ -1211,65 +1496,74 @@ export default function DashboardMiRestaurante() {
                 value={mensajeFueraHorario}
                 onChange={e => setMensajeFueraHorario(e.target.value)}
                 placeholder="Ej. ¡Gracias por escribirnos! Nuestra cocina está actualmente en descanso. Te responderemos apenas abramos a primera hora."
-                style={{ resize: 'vertical' }}
+                style={{ resize: 'vertical', width: '100%' }}
               />
             </div>
           </div>
 
-          {/* Días Feriados / Cierres Especiales */}
+          {/* Días Feriados / Cierres Programados */}
           <div style={{
-            background: 'var(--color-surface-2)', padding: 24, borderRadius: 20,
-            border: '1px solid var(--color-surface-3)', display: 'flex', flexDirection: 'column', gap: 16
+            background: 'var(--color-surface, #FFFFFF)', padding: 18, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: 14
           }}>
             <div>
-              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, margin: 0, color: 'var(--color-on-surface)' }}>
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--color-on-surface, #0F172A)' }}>
                 Días Feriados & Cierres Programados 🗓️
               </h3>
-              <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 4 }}>
-                Programa fechas específicas donde el local permanecerá cerrado (Navidad, Año Nuevo, mantenimiento, etc.).
+              <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '3px 0 0' }}>
+                Fechas específicas donde el restaurante estará cerrado (Navidad, mantenimiento, feriados).
               </p>
             </div>
 
-            {/* Agregar Feriado */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <input
-                type="date"
-                className="input-field"
-                style={{ width: 180 }}
-                value={newFeriadoFecha}
-                onChange={e => setNewFeriadoFecha(e.target.value)}
-              />
-              <input
-                className="input-field"
-                style={{ flex: 1, minWidth: 200 }}
-                placeholder="Motivo del cierre (Ej. Feriado de Navidad)"
-                value={newFeriadoMotivo}
-                onChange={e => setNewFeriadoMotivo(e.target.value)}
-              />
-              <button type="button" onClick={handleAddFeriado} className="btn-primary" style={{ padding: '10px 18px', fontSize: 13 }}>
-                + Agregar Fecha
+            {/* Formulario Mobile-Friendly Agregar Feriado */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                <input
+                  type="date"
+                  className="input-field"
+                  style={{ width: '100%', fontSize: 13 }}
+                  value={newFeriadoFecha}
+                  onChange={e => setNewFeriadoFecha(e.target.value)}
+                />
+                <input
+                  className="input-field"
+                  style={{ width: '100%', fontSize: 13 }}
+                  placeholder="Motivo (Ej. Feriado Nacional)"
+                  value={newFeriadoMotivo}
+                  onChange={e => setNewFeriadoMotivo(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleAddFeriado}
+                className="btn-primary"
+                style={{ width: '100%', padding: '10px 16px', fontSize: 13, fontWeight: 800, borderRadius: 10 }}
+              >
+                + Agregar Fecha de Cierre
               </button>
             </div>
 
             {/* Lista de Feriados */}
             {diasFeriados.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                 {diasFeriados.map((f, idx) => (
                   <div key={idx} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 14px', background: 'var(--color-surface)', borderRadius: 12,
-                    border: '1px solid var(--color-surface-3)'
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                    padding: '10px 12px', background: 'var(--color-surface-2, #F8FAFC)', borderRadius: 12,
+                    border: '1px solid var(--color-surface-3, #E2E8F0)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-primary)' }}>{f.fecha}</span>
-                      <span style={{ fontSize: 13, color: 'var(--color-on-surface)', fontWeight: 600 }}>— {f.motivo}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, overflow: 'hidden' }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-primary, #059669)' }}>{f.fecha}</span>
+                      <span style={{ fontSize: 12, color: 'var(--color-on-surface, #0F172A)', fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {f.motivo}
+                      </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleDeleteFeriado(idx)}
-                      style={{ background: 'transparent', border: 'none', color: '#EF4444', fontWeight: 800, cursor: 'pointer', fontSize: 12 }}
+                      style={{ background: 'transparent', border: 'none', color: '#EF4444', fontWeight: 800, cursor: 'pointer', fontSize: 12, flexShrink: 0 }}
                     >
-                      🗑️ Eliminar
+                      🗑️ Borrar
                     </button>
                   </div>
                 ))}
@@ -1277,14 +1571,23 @@ export default function DashboardMiRestaurante() {
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="btn-primary"
-            style={{ padding: '14px 24px', alignSelf: 'flex-end', fontWeight: 800 }}
-          >
-            {saving ? 'Guardando...' : 'Guardar Horarios & Calendario'}
-          </button>
+          {/* Botón Guardar Flotante / Sticky en Mobile */}
+          <div style={{
+            position: 'sticky', bottom: 16, zIndex: 10,
+            background: 'var(--color-surface, #FFFFFF)',
+            padding: 12, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)',
+            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)'
+          }}>
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary"
+              style={{ width: '100%', padding: '14px 20px', fontWeight: 800, fontSize: 14, borderRadius: 12 }}
+            >
+              {saving ? 'Guardando Cambios...' : '💾 Guardar Horarios y Calendario'}
+            </button>
+          </div>
         </form>
       )}
 
@@ -1880,6 +2183,254 @@ export default function DashboardMiRestaurante() {
       {/* PESTAÑA MÓDULOS SAAS */}
       {/* ────────────────────────────────────────────────────────────────── */}
       {activeSubTab === 'modulos' && <DashboardModulos />}
+
+      {/* ────────────────────────────────────────────────────────────────── */}
+      {/* PESTAÑA SUCURSALES & SEDES */}
+      {/* ────────────────────────────────────────────────────────────────── */}
+      {activeSubTab === 'sucursales' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Header Sucursales */}
+          <div style={{
+            background: 'var(--color-surface, #FFFFFF)', padding: 22, borderRadius: 16,
+            border: '1px solid var(--color-surface-3, #E2E8F0)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 17, fontWeight: 800, margin: 0, color: 'var(--color-on-surface, #0F172A)' }}>
+                  🏢 Sedes de {activeRestaurant?.nombre || 'tu Negocio'}
+                </h3>
+                <span style={{
+                  fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 20,
+                  background: 'var(--color-accent, #ECFDF5)', color: 'var(--color-primary, #059669)',
+                  border: '1px solid var(--color-surface-3, #E2E8F0)'
+                }}>
+                  {restaurants.length} {restaurants.length === 1 ? 'Sede' : 'Sedes'}
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '4px 0 0' }}>
+                Cada sucursal opera de forma autónoma con su propio stock, mesas, delivery y personal, compartiendo tu marca matriz.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowNuevaSucursalModal(true)}
+              className="btn-primary"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 18px', borderRadius: 12, fontWeight: 800, fontSize: 13
+              }}
+            >
+              ➕ Registrar Nueva Sede
+            </button>
+          </div>
+
+          {/* Listado de Sucursales */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+            {restaurants.map(r => {
+              const isCurrent = r.id === activeRestaurant?.id;
+              const isMatriz = !r.parent_id;
+              return (
+                <div key={r.id} style={{
+                  background: isCurrent ? 'var(--color-surface, #FFFFFF)' : 'var(--color-surface-2, #F8FAFC)',
+                  border: `1.5px solid ${isCurrent ? 'var(--color-primary, #059669)' : 'var(--color-surface-3, #E2E8F0)'}`,
+                  borderRadius: 16, padding: 18,
+                  boxShadow: isCurrent ? '0 4px 14px rgba(5, 150, 105, 0.08)' : 'none',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                      <div>
+                        <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 800, color: 'var(--color-on-surface, #0F172A)', margin: 0 }}>
+                          {r.nombre_sucursal || 'Sede Principal'}
+                        </p>
+                        <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', fontWeight: 600, margin: '2px 0 0' }}>
+                          {r.nombre}
+                        </p>
+                      </div>
+
+                      <span style={{
+                        fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 6,
+                        background: isMatriz ? '#ECFDF5' : '#F1F5F9',
+                        color: isMatriz ? '#059669' : '#475569',
+                        border: `1px solid ${isMatriz ? '#A7F3D0' : '#E2E8F0'}`
+                      }}>
+                        {isMatriz ? 'Casa Matriz' : 'Sucursal'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, color: 'var(--color-muted, #64748B)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>📍</span>
+                        <span style={{ color: 'var(--color-on-surface, #0F172A)', fontWeight: 600 }}>{r.direccion || 'Sin dirección registrada'}</span>
+                      </div>
+                      {r.telefono && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>📞</span>
+                          <span>{r.telefono}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>🔗</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--color-primary, #059669)' }}>/{r.slug}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ paddingTop: 10, borderTop: '1px solid var(--color-surface-3, #E2E8F0)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    {isCurrent ? (
+                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-primary, #059669)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-primary, #059669)' }} />
+                        Sede Activa en el Panel
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { selectRestaurant(r); showToast(`Cambiaste a sede ${r.nombre_sucursal}`); }}
+                        style={{
+                          background: 'var(--color-surface, #FFFFFF)',
+                          border: '1px solid var(--color-surface-3, #E2E8F0)',
+                          borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700,
+                          color: 'var(--color-on-surface, #0F172A)', cursor: 'pointer',
+                          transition: 'all 150ms ease'
+                        }}
+                      >
+                        Cambiar a esta sede →
+                      </button>
+                    )}
+
+                    <a
+                      href={`/${r.slug}/ordenar`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-muted, #64748B)', textDecoration: 'none' }}
+                    >
+                      Ver Menú QR ↗
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Modal Nueva Sucursal */}
+          {showNuevaSucursalModal && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 100,
+              background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+            }}>
+              <div style={{
+                background: 'var(--color-surface, #FFFFFF)',
+                borderRadius: 20, maxWidth: 500, width: '100%', padding: 24,
+                boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+                animation: 'fade-in 200ms ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div>
+                    <h4 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--color-on-surface, #0F172A)' }}>
+                      ➕ Nueva Sede / Sucursal
+                    </h4>
+                    <p style={{ fontSize: 12, color: 'var(--color-muted, #64748B)', margin: '3px 0 0' }}>
+                      Negocio: <strong>{activeRestaurant?.nombre}</strong>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowNuevaSucursalModal(false)}
+                    style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-muted, #64748B)' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleCrearSucursal} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase', marginBottom: 5 }}>
+                      Nombre de la Sede *
+                    </label>
+                    <input
+                      required
+                      className="input-field"
+                      placeholder="Ej: Sede Miraflores, Sede Barranco, Express Mall..."
+                      value={nombreSucursal}
+                      onChange={e => {
+                        setNombreSucursal(e.target.value);
+                        if (!slugSucursal) {
+                          setSlugSucursal(`${activeRestaurant?.slug || 'rest'}-${e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-')}`);
+                        }
+                      }}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase', marginBottom: 5 }}>
+                      Dirección Física
+                    </label>
+                    <input
+                      className="input-field"
+                      placeholder="Ej: Av. Larco 456, Miraflores"
+                      value={direccionSucursal}
+                      onChange={e => setDireccionSucursal(e.target.value)}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase', marginBottom: 5 }}>
+                        Teléfono WhatsApp
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="Ej: 51987654321"
+                        value={telefonoSucursal}
+                        onChange={e => setTelefonoSucursal(e.target.value)}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--color-muted, #64748B)', textTransform: 'uppercase', marginBottom: 5 }}>
+                        Slug URL (Único)
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="ej: santos-barranco"
+                        value={slugSucursal}
+                        onChange={e => setSlugSucursal(e.target.value)}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowNuevaSucursalModal(false)}
+                      style={{
+                        padding: '10px 16px', borderRadius: 10, border: '1px solid var(--color-surface-3, #E2E8F0)',
+                        background: 'transparent', color: 'var(--color-muted, #64748B)', fontWeight: 700, cursor: 'pointer'
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={creandoSucursal}
+                      className="btn-primary"
+                      style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 800, cursor: creandoSucursal ? 'not-allowed' : 'pointer' }}
+                    >
+                      {creandoSucursal ? 'Creando Sede...' : 'Guardar y Crear Sede'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

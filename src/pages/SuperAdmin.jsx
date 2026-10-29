@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth, useRouter, useTheme } from '../router';
 import { NICHOS_CONFIG } from '../config/nichosConfig';
+import BotSandbox from './superadmin/BotSandbox';
 
 export const ALL_MODULES = [
   { id: 'pedidos', nombre: 'Pedidos & QR', icon: '📱' },
@@ -74,11 +75,13 @@ export default function SuperAdmin() {
   // Modal Nuevo Restaurante
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [copiedResId, setCopiedResId] = useState(null);
   const [newRes, setNewRes] = useState({
     nombre: '',
     slug: '',
     telefono: '',
     direccion: '',
+    evolution_instance: '',
     nicho_preset: 'plant_based',
     modalidad: 'DIGITAL' // 'DIGITAL' | 'COMPLETO'
   });
@@ -283,6 +286,7 @@ export default function SuperAdmin() {
           slug: cleanSlug,
           telefono: newRes.telefono.trim() || null,
           direccion: newRes.direccion.trim() || null,
+          evolution_instance: newRes.evolution_instance.trim() || null,
           nicho_preset: newRes.nicho_preset,
           color_primario: presetCfg.paletaRecomendada.primary,
           color_secundario: presetCfg.paletaRecomendada.secondary
@@ -315,6 +319,7 @@ export default function SuperAdmin() {
         slug: '',
         telefono: '',
         direccion: '',
+        evolution_instance: '',
         nicho_preset: 'plant_based',
         modalidad: 'DIGITAL'
       });
@@ -490,6 +495,26 @@ export default function SuperAdmin() {
         >
           💳 Solicitudes ({solicitudes.filter(s => s.estado === 'pendiente').length})
         </button>
+        <button
+          onClick={() => setActiveTab('sandbox')}
+          style={{
+            flex: 1,
+            padding: '14px 8px',
+            border: 'none',
+            background: 'none',
+            color: activeTab === 'sandbox' ? '#10B981' : c.textMuted,
+            fontWeight: 800,
+            fontSize: 13,
+            borderBottom: activeTab === 'sandbox' ? '2.5px solid #10B981' : '2.5px solid transparent',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
+          }}
+        >
+          🧪 Laboratorio Bot
+        </button>
       </div>
 
       <main style={{ maxWidth: 840, margin: '0 auto', padding: '16px' }}>
@@ -612,6 +637,24 @@ export default function SuperAdmin() {
                                   📞 {res.telefono}
                                 </span>
                               )}
+                              {res.evolution_instance ? (
+                                <span style={{ fontSize: 11, color: '#10B981', background: isDark ? '#10B98120' : '#D1FAE5', padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>
+                                  🟢 Evo: {res.evolution_instance}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 11, color: '#F59E0B', background: isDark ? '#F59E0B20' : '#FEF3C7', padding: '1px 6px', borderRadius: 6, fontWeight: 700 }}>
+                                  ⚠️ Sin Instancia WhatsApp
+                                </span>
+                              )}
+                              {res.onboarding_completado ? (
+                                <span style={{ fontSize: 11, color: '#059669', background: isDark ? '#05966925' : '#ECFDF5', padding: '1px 6px', borderRadius: 6, fontWeight: 800 }}>
+                                  ✅ Onboarding Listo
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: 11, color: '#8B5CF6', background: isDark ? '#8B5CF625' : '#F5F3FF', padding: '1px 6px', borderRadius: 6, fontWeight: 800 }}>
+                                  ⏳ Onboarding Pendiente
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -640,47 +683,114 @@ export default function SuperAdmin() {
                           paddingTop: 10,
                           borderTop: `1px solid ${c.border}`
                         }}>
-                          {/* Selector de Nicho */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 700 }}>Nicho:</span>
-                            <select
-                              value={res.nicho_preset || 'plant_based'}
-                              onChange={async (e) => {
-                                const val = e.target.value;
-                                const presetCfg = NICHOS_CONFIG[val] || NICHOS_CONFIG.plant_based;
-                                
-                                setRestaurantes(prev => prev.map(r => r.id === res.id ? { 
-                                  ...r, 
-                                  nicho_preset: val,
-                                  color_primario: presetCfg.paletaRecomendada.primary,
-                                  color_secundario: presetCfg.paletaRecomendada.secondary 
-                                } : r));
-
-                                try {
-                                  await supabase.from('restaurantes').update({ 
+                          {/* Selector de Nicho y Modo Toma Pedidos */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 700 }}>Nicho:</span>
+                              <select
+                                value={res.nicho_preset || 'plant_based'}
+                                onChange={async (e) => {
+                                  const val = e.target.value;
+                                  const presetCfg = NICHOS_CONFIG[val] || NICHOS_CONFIG.plant_based;
+                                  
+                                  setRestaurantes(prev => prev.map(r => r.id === res.id ? { 
+                                    ...r, 
                                     nicho_preset: val,
                                     color_primario: presetCfg.paletaRecomendada.primary,
-                                    color_secundario: presetCfg.paletaRecomendada.secondary
-                                  }).eq('id', res.id);
-                                } catch (err) {
-                                  console.error("Error al actualizar nicho:", err);
-                                }
-                              }}
-                              style={{
+                                    color_secundario: presetCfg.paletaRecomendada.secondary 
+                                  } : r));
+
+                                  try {
+                                    await supabase.from('restaurantes').update({ 
+                                      nicho_preset: val,
+                                      color_primario: presetCfg.paletaRecomendada.primary,
+                                      color_secundario: presetCfg.paletaRecomendada.secondary
+                                    }).eq('id', res.id);
+                                  } catch (err) {
+                                    console.error("Error al actualizar nicho:", err);
+                                  }
+                                }}
+                                style={{
+                                  background: c.innerBg,
+                                  color: c.primaryText,
+                                  border: `1px solid ${c.border}`,
+                                  borderRadius: 8,
+                                  padding: '4px 8px',
+                                  fontSize: 11.5,
+                                  fontWeight: 800,
+                                  outline: 'none'
+                                }}
+                              >
+                                {Object.values(NICHOS_CONFIG).map(n => (
+                                  <option key={n.id} value={n.id}>{n.nombre}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Switch Modo Pedidos (Bot vs Humano) */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: c.textMuted, fontWeight: 700 }}>Toma Pedidos:</span>
+                              <div style={{
+                                display: 'flex',
                                 background: c.innerBg,
-                                color: c.primaryText,
                                 border: `1px solid ${c.border}`,
                                 borderRadius: 8,
-                                padding: '4px 8px',
-                                fontSize: 11.5,
-                                fontWeight: 800,
-                                outline: 'none'
-                              }}
-                            >
-                              {Object.values(NICHOS_CONFIG).map(n => (
-                                <option key={n.id} value={n.id}>{n.nombre}</option>
-                              ))}
-                            </select>
+                                padding: 2,
+                                gap: 2
+                              }}>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (res.modo_toma_pedidos === 'bot') return;
+                                    setRestaurantes(prev => prev.map(r => r.id === res.id ? { ...r, modo_toma_pedidos: 'bot' } : r));
+                                    await supabase.from('restaurantes').update({ modo_toma_pedidos: 'bot' }).eq('id', res.id);
+                                  }}
+                                  title="El bot interactúa cordialmente con el cliente y toma el pedido por chat paso a paso"
+                                  style={{
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    padding: '3px 8px',
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    background: (res.modo_toma_pedidos || 'bot') === 'bot' ? (isDark ? '#10B98130' : '#DCFCE7') : 'transparent',
+                                    color: (res.modo_toma_pedidos || 'bot') === 'bot' ? (isDark ? '#34D399' : '#15803D') : c.textMuted,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    transition: 'all 150ms'
+                                  }}
+                                >
+                                  🤖 Bot
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (res.modo_toma_pedidos === 'humano') return;
+                                    setRestaurantes(prev => prev.map(r => r.id === res.id ? { ...r, modo_toma_pedidos: 'humano' } : r));
+                                    await supabase.from('restaurantes').update({ modo_toma_pedidos: 'humano' }).eq('id', res.id);
+                                  }}
+                                  title="Al pedir por chat, se pausa el bot y se transfiere de inmediato al encargado con alerta a WhatsApp"
+                                  style={{
+                                    border: 'none',
+                                    borderRadius: 6,
+                                    padding: '3px 8px',
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    background: res.modo_toma_pedidos === 'humano' ? (isDark ? '#F59E0B30' : '#FEF3C7') : 'transparent',
+                                    color: res.modo_toma_pedidos === 'humano' ? (isDark ? '#FBBF24' : '#B45309') : c.textMuted,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    transition: 'all 150ms'
+                                  }}
+                                >
+                                  👤 Humano
+                                </button>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Botones de Preset 1 Clic */}
@@ -729,6 +839,54 @@ export default function SuperAdmin() {
 
                             <button
                               onClick={() => {
+                                const onboardingUrl = `${window.location.origin}/onboarding?token=${res.onboarding_token || res.slug || res.id}`;
+                                navigator.clipboard.writeText(onboardingUrl);
+                                setCopiedResId(res.id);
+                                setTimeout(() => setCopiedResId(null), 3000);
+                              }}
+                              title="Copiar link único para que el cliente complete su menú, medios de pago y bot de forma autónoma"
+                              style={{
+                                background: copiedResId === res.id ? (isDark ? '#10B98130' : '#D1FAE5') : (isDark ? '#1E1B4B' : '#EEF2FF'),
+                                border: `1px solid ${copiedResId === res.id ? '#10B981' : (isDark ? '#6366F140' : '#C7D2FE')}`,
+                                color: copiedResId === res.id ? '#10B981' : (isDark ? '#A5B4FC' : '#4F46E5'),
+                                padding: '6px 10px',
+                                borderRadius: 10,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              {copiedResId === res.id ? '✅ ¡Link Copiado!' : '🔗 Copiar Link Cliente'}
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                navigate(`/onboarding?token=${res.onboarding_token || res.slug || res.id}`);
+                              }}
+                              title="Abrir formulario de onboarding precargado para completarlo tú mismo (Servicio Concierge Agencia)"
+                              style={{
+                                background: isDark ? '#311042' : '#FDF4FF',
+                                border: `1px solid ${isDark ? '#A855F740' : '#F0ABFC'}`,
+                                color: isDark ? '#E879F9' : '#C026D3',
+                                padding: '6px 10px',
+                                borderRadius: 10,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                            >
+                              ⚡ Llenar como Agencia
+                            </button>
+
+                            <button
+                              onClick={() => {
                                 if (selectRestaurant) selectRestaurant(res);
                                 navigate('/dashboard');
                               }}
@@ -747,7 +905,7 @@ export default function SuperAdmin() {
                                 gap: 4
                               }}
                             >
-                              🛠️ Entrar y Configurar
+                              🛠️ Panel Completo
                             </button>
                           </div>
                         </div>
@@ -838,6 +996,8 @@ export default function SuperAdmin() {
               )}
             </div>
           </div>
+        ) : activeTab === 'sandbox' ? (
+          <BotSandbox restaurantes={restaurantes} isDark={isDark} themePalette={c} />
         ) : (
           /* TAB 2: SOLICITUDES DE PAGO */
           <div>
@@ -1167,6 +1327,34 @@ export default function SuperAdmin() {
                     boxSizing: 'border-box'
                   }}
                 />
+              </div>
+
+              {/* Instancia Evolution API */}
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: c.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>
+                  Instancia Evolution API (Opcional - WhatsApp Conectado)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: rest-veggie-01 (creada previamente en tu Evolution API)"
+                  value={newRes.evolution_instance}
+                  onChange={e => setNewRes({ ...newRes, evolution_instance: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: c.inputBg,
+                    border: `1.5px solid ${c.borderStrong}`,
+                    color: c.primaryText,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <span style={{ fontSize: 10, color: c.textMuted, marginTop: 4, display: 'block' }}>
+                  💡 Tú creas la instancia en Evolution y le pasas el QR al cliente. Aquí colocas el nombre para vincularlo.
+                </span>
               </div>
 
               {/* Nicho / Tema visual */}
